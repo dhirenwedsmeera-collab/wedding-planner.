@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 160 30% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 30% 10%;
+    --muted: 40 20% 94%;
+    --muted-foreground: 160 10% 40%;
+    --border: 40 20% 88%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 160 25% 7%;
+    --foreground: 40 33% 96%;
+    --card: 160 22% 10%;
+    --card-foreground: 40 33% 96%;
+    --muted: 160 18% 14%;
+    --muted-foreground: 40 15% 65%;
+    --border: 160 18% 18%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-gold-200/40 dark:border-gold-900/30 shadow-soft;
+  }
+  .gold-hover {
+    @apply transition-all duration-300 hover:shadow-gold-glow hover:border-gold-400/60;
+  }
+  .shimmer-bg {
+    background: linear-gradient(90deg, transparent, rgba(209,143,30,0.15), transparent);
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+  .input {
+    @apply w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500;
+  }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { @apply bg-emerald-300/50 dark:bg-emerald-800/50 rounded-full; }
+::-webkit-scrollbar-track { background: transparent; }
