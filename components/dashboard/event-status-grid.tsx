@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import type { WeddingEvent } from "@/types/domain";
-import { EVENT_GRADIENTS, formatDate } from "@/lib/utils";
+import { EVENT_GRADIENTS } from "@/types/domain";
+import { formatDate } from "@/lib/utils";
 
 export function EventStatusGrid({
   events,

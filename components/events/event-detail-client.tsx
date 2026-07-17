@@ -7,7 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import type { WeddingEvent, Task, ShoppingItem, BudgetLine, Expense } from "@/types/domain";
-import { EVENT_GRADIENTS, formatCurrency, formatDate, getTaskUrgency, URGENCY_STYLES } from "@/lib/utils";
+import { EVENT_GRADIENTS } from "@/types/domain";
+import { formatCurrency, formatDate, getTaskUrgency, URGENCY_STYLES } from "@/lib/utils";
 
 const TABS = ["Overview", "Tasks", "Budget", "Shopping", "Notes"] as const;
 

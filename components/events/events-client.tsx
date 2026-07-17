@@ -10,7 +10,8 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import type { WeddingEvent } from "@/types/domain";
-import { EVENT_GRADIENTS, formatDate } from "@/lib/utils";
+import { EVENT_GRADIENTS } from "@/types/domain";
+import { formatDate } from "@/lib/utils";
 
 const THEMES = ["mehendi", "haldi", "nikah", "reception", "emerald"];
 
