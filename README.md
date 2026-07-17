@@ -108,8 +108,12 @@ both are made.
    4. Open that freshly unzipped `wedding-planner` folder, select
       **everything inside it** (Ctrl+A / Cmd+A), copy it, and paste it into
       the now-empty folder from step 2. Do not rename anything.
-   5. Back in GitHub Desktop, you'll see a big list of changes. Type a summary
-      like `Fix project structure`, click **"Commit to main"**, then
+   5. Back in GitHub Desktop, you'll see a list of changes — the number
+      depends on how much was actually different, so don't worry if it's
+      just one file or a handful rather than a huge list (a full restart like
+      this usually shows many, but a small targeted fix might only touch one
+      or two files, and that's completely normal too). Type a summary like
+      `Fix project structure`, click **"Commit to main"**, then
       **"Push origin"**.
    6. Go to your repository on github.com and confirm `package.json` and a
       folder called `app` are sitting directly in the top-level file list.
@@ -246,6 +250,21 @@ both are made.
       re-deploy after you push new changes to GitHub — no need to click
       Deploy again. Wait for it to say "Ready", then click "Visit" again.
 
+   **If your build logs show `✓ Compiled successfully` and all your pages
+   listed, but it still fails at the very end with `Error: No Output
+   Directory named "public" found`**, that's a different, simpler problem —
+   your code is fine, it's just a project setting in Vercel:
+
+   1. In your Vercel project, click **"Settings"** (top menu) → **"General"**.
+   2. Find **"Framework Preset"**. It should say **"Next.js"**. If it says
+      **"Other"** or anything else, click it and change it to **"Next.js"**.
+   3. While you're there, scroll to **"Build & Output Settings"** and make
+      sure **"Output Directory"** does not have a custom override switched on
+      (if there's a toggle next to it that's turned on with something typed
+      in like `public`, turn that toggle off).
+   4. Click **"Save"** if prompted.
+   5. Go to **"Deployments"** → **"⋯"** on the latest one → **"Redeploy"**.
+
 At this point your site is live, but it won't work yet — the database behind it
 is still empty. That's the next step.
 
@@ -264,6 +283,13 @@ is still empty. That's the next step.
    (or press Ctrl+Enter / Cmd+Enter).
 7. You should see a green **"Success"** message at the bottom. If you see a red
    error instead, stop and tell me exactly what it says.
+
+   **Good news if you already hit an error like `type "user_role" already
+   exists`:** these files are now written so they're safe to run more than
+   once — if you accidentally ran one twice, or re-ran after a partial
+   failure, just run all four files again in order (0001 → 0002 → 0003 →
+   0004) and they'll skip anything already created instead of erroring. You
+   don't need to manually undo anything first.
 8. Repeat steps 3–7 for these three files, **in this exact order**:
    - `supabase/migrations/0002_rls.sql`
    - `supabase/migrations/0003_realtime_storage.sql`
@@ -307,6 +333,18 @@ someone who built it).
    - **Email** — any email address you can check
    - **Password** — anything 6 characters or more
 5. Click **"Create Account"**.
+
+   **If you see an error that says `Database error saving new user`**, this
+   is a known Supabase permissions gap, not something wrong with what you
+   typed. Here's the fix:
+
+   1. Go to Supabase → **SQL Editor** → **"New query"**.
+   2. Open `supabase/migrations/0005_fix_signup_trigger.sql` from your
+      project folder, copy all its contents, and paste it into the query box.
+   3. Click **"Run"**. You should see **"Success"**.
+   4. Go back to your site and try creating your account again — it should
+      work now.
+
 6. Depending on what you chose in Step 4:
    - If you turned "Confirm email" **off** — you're logged in immediately and
      land on the Dashboard.
@@ -353,18 +391,19 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
 - Booking Tracker: all 16 required categories pre-seeded, urgency engine (lead
   time per category vs. days remaining), stats, filters, WhatsApp contact
   links, admin edit/add
-- Realtime: dashboard/tasks/bookings refresh live for everyone automatically
+- Events: full list + per-event page (`/events/[slug]`) showing that event's
+  own tasks, budget, shopping, and progress; admin can add/archive events
+- Budget: planned vs. actual by category and event, expense log, admin-only
+  editing
+- Shopping: list by category, purchased/pending toggle, budget vs. actual
+  price, assigned person
+- Guests: list with RSVP status, side (bride/groom), category, search/filters
+- Vendors: contact directory with category, rating, advance/balance
+- Realtime: every page above refreshes live for everyone automatically via
+  Supabase Realtime
 
-## What still needs to be built
-
-The database already fully supports these — they just need their page built
-(same pattern as Tasks/Bookings above). Tell me which one you want next:
-- `/events/[slug]` — per-event dashboard (tasks/budget/shopping/files/notes
-  filtered to just that event)
-- `/budget` — budget vs actuals, expense log, charts
-- `/shopping` — shopping list by category, purchased/pending, receipt upload
-- `/guests` — guest list, RSVP tracking, filters
-- `/vendors` — general vendor contact directory
+Every page above reads and writes real data through Supabase — nothing is
+mock data. The whole app is feature-complete against the original spec.
 
 ## Local development (optional — only if you want to run it on your own
 computer instead of just using the live Vercel site)

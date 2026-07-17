@@ -1,45 +1,73 @@
 -- =====================================================================
 -- DHIREN & MEERA'S WEDDING PLANNER — CORE SCHEMA
 -- Run in Supabase SQL Editor, in order, as migration 1.
+--
+-- This file is safe to run more than once — if you accidentally run it
+-- twice, or re-run it after a partial failure, it will skip anything
+-- that already exists instead of erroring.
 -- =====================================================================
 
 create extension if not exists "uuid-ossp";
 create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------------
--- ENUMS
+-- ENUMS (wrapped so re-running this file never errors on "already exists")
 -- ---------------------------------------------------------------------
-create type user_role as enum ('admin', 'family', 'volunteer');
-create type wedding_side as enum ('bride', 'groom', 'both');
+do $$ begin
+  create type user_role as enum ('admin', 'family', 'volunteer');
+exception when duplicate_object then null; end $$;
 
-create type task_priority as enum ('critical', 'high', 'medium', 'low');
-create type task_status as enum ('not_started', 'in_progress', 'waiting', 'blocked', 'completed', 'cancelled');
+do $$ begin
+  create type wedding_side as enum ('bride', 'groom', 'both');
+exception when duplicate_object then null; end $$;
 
-create type booking_status as enum ('not_booked', 'enquired', 'negotiating', 'booked', 'confirmed', 'cancelled');
-create type booking_category as enum (
-  'makeup_artist', 'clothes_tailor', 'decoration', 'catering', 'photographer',
-  'videographer', 'mehendi_artist', 'dj_sound', 'lighting', 'transportation',
-  'venue', 'flowers', 'jeweler', 'invitation_printing', 'accommodation', 'other'
-);
+do $$ begin
+  create type task_priority as enum ('critical', 'high', 'medium', 'low');
+exception when duplicate_object then null; end $$;
 
-create type rsvp_status as enum ('pending', 'confirmed', 'declined', 'no_response');
-create type guest_category as enum ('family', 'friend', 'vip');
+do $$ begin
+  create type task_status as enum ('not_started', 'in_progress', 'waiting', 'blocked', 'completed', 'cancelled');
+exception when duplicate_object then null; end $$;
 
-create type vendor_category as enum (
-  'photographer', 'decorator', 'catering', 'makeup', 'mehendi_artist',
-  'dj', 'venue', 'flowers', 'jeweler', 'other'
-);
+do $$ begin
+  create type booking_status as enum ('not_booked', 'enquired', 'negotiating', 'booked', 'confirmed', 'cancelled');
+exception when duplicate_object then null; end $$;
 
-create type activity_type as enum (
-  'task_created','task_updated','task_completed','task_assigned',
-  'booking_updated','budget_updated','shopping_updated','guest_updated',
-  'event_created','event_archived','comment_added'
-);
+do $$ begin
+  create type booking_category as enum (
+    'makeup_artist', 'clothes_tailor', 'decoration', 'catering', 'photographer',
+    'videographer', 'mehendi_artist', 'dj_sound', 'lighting', 'transportation',
+    'venue', 'flowers', 'jeweler', 'invitation_printing', 'accommodation', 'other'
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type rsvp_status as enum ('pending', 'confirmed', 'declined', 'no_response');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type guest_category as enum ('family', 'friend', 'vip');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type vendor_category as enum (
+    'photographer', 'decorator', 'catering', 'makeup', 'mehendi_artist',
+    'dj', 'venue', 'flowers', 'jeweler', 'other'
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type activity_type as enum (
+    'task_created','task_updated','task_completed','task_assigned',
+    'booking_updated','budget_updated','shopping_updated','guest_updated',
+    'event_created','event_archived','comment_added'
+  );
+exception when duplicate_object then null; end $$;
 
 -- ---------------------------------------------------------------------
 -- PROFILES (extends auth.users)
 -- ---------------------------------------------------------------------
-create table profiles (
+create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null,
   role user_role not null default 'volunteer',
@@ -55,12 +83,21 @@ begin
   insert into public.profiles (id, full_name, role)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    coalesce(nullif(trim(new.raw_user_meta_data->>'full_name'), ''), split_part(new.email, '@', 1), 'New User'),
     coalesce((new.raw_user_meta_data->>'role')::user_role, 'volunteer')
-  );
+  )
+  on conflict (id) do nothing;
   return new;
-end; $$ language plpgsql security definer;
+end; $$ language plpgsql security definer set search_path = public;
 
+-- The auth signup trigger actually fires as the `supabase_auth_admin` role,
+-- not as the function owner's default privileges — without these explicit
+-- grants, signups fail with a generic "Database error saving new user".
+grant usage on schema public to supabase_auth_admin;
+grant all on public.profiles to supabase_auth_admin;
+grant execute on function handle_new_user() to supabase_auth_admin;
+
+drop trigger if exists trg_on_auth_user_created on auth.users;
 create trigger trg_on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
@@ -68,7 +105,7 @@ create trigger trg_on_auth_user_created
 -- ---------------------------------------------------------------------
 -- EVENTS (Mehendi, Haldi, Nikah, Reception ... fully dynamic)
 -- ---------------------------------------------------------------------
-create table events (
+create table if not exists events (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
   slug text not null unique,
@@ -87,7 +124,7 @@ create table events (
 -- ---------------------------------------------------------------------
 -- TASKS
 -- ---------------------------------------------------------------------
-create table tasks (
+create table if not exists tasks (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid references events(id) on delete cascade,
   name text not null,
@@ -102,13 +139,13 @@ create table tasks (
   updated_at timestamptz not null default now()
 );
 
-create table task_assignees (
+create table if not exists task_assignees (
   task_id uuid references tasks(id) on delete cascade,
   user_id uuid references profiles(id) on delete cascade,
   primary key (task_id, user_id)
 );
 
-create table task_checklist_items (
+create table if not exists task_checklist_items (
   id uuid primary key default uuid_generate_v4(),
   task_id uuid references tasks(id) on delete cascade,
   label text not null,
@@ -116,7 +153,7 @@ create table task_checklist_items (
   sort_order int not null default 0
 );
 
-create table task_comments (
+create table if not exists task_comments (
   id uuid primary key default uuid_generate_v4(),
   task_id uuid references tasks(id) on delete cascade,
   author_id uuid references profiles(id),
@@ -127,7 +164,7 @@ create table task_comments (
 -- ---------------------------------------------------------------------
 -- SHOPPING
 -- ---------------------------------------------------------------------
-create table shopping_items (
+create table if not exists shopping_items (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid references events(id) on delete cascade,
   name text not null,
@@ -145,7 +182,7 @@ create table shopping_items (
 -- ---------------------------------------------------------------------
 -- BUDGET
 -- ---------------------------------------------------------------------
-create table budget_lines (
+create table if not exists budget_lines (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid references events(id) on delete cascade,
   category text not null,
@@ -154,7 +191,7 @@ create table budget_lines (
   created_at timestamptz not null default now()
 );
 
-create table expenses (
+create table if not exists expenses (
   id uuid primary key default uuid_generate_v4(),
   budget_line_id uuid references budget_lines(id) on delete cascade,
   event_id uuid references events(id) on delete cascade,
@@ -170,7 +207,7 @@ create table expenses (
 -- ---------------------------------------------------------------------
 -- GUESTS
 -- ---------------------------------------------------------------------
-create table guests (
+create table if not exists guests (
   id uuid primary key default uuid_generate_v4(),
   full_name text not null,
   category guest_category not null default 'family',
@@ -185,7 +222,7 @@ create table guests (
   created_at timestamptz not null default now()
 );
 
-create table guest_events (
+create table if not exists guest_events (
   guest_id uuid references guests(id) on delete cascade,
   event_id uuid references events(id) on delete cascade,
   primary key (guest_id, event_id)
@@ -194,7 +231,7 @@ create table guest_events (
 -- ---------------------------------------------------------------------
 -- VENDORS (general contact/rating registry)
 -- ---------------------------------------------------------------------
-create table vendors (
+create table if not exists vendors (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
   category vendor_category not null,
@@ -210,7 +247,7 @@ create table vendors (
 -- ---------------------------------------------------------------------
 -- BOOKING TRACKER (critical, separate from vendors table)
 -- ---------------------------------------------------------------------
-create table booking_lead_times (
+create table if not exists booking_lead_times (
   category booking_category primary key,
   lead_time_days int not null -- ideal days-before-wedding this should be booked by
 );
@@ -223,9 +260,10 @@ insert into booking_lead_times (category, lead_time_days) values
   ('dj_sound', 120), ('mehendi_artist', 120), ('lighting', 120), ('clothes_tailor', 120),
   ('makeup_artist', 105),
   ('transportation', 90), ('invitation_printing', 90), ('other', 90),
-  ('flowers', 60);
+  ('flowers', 60)
+on conflict (category) do nothing;
 
-create table bookings (
+create table if not exists bookings (
   id uuid primary key default uuid_generate_v4(),
   vendor_name text not null,
   category booking_category not null,
@@ -250,7 +288,7 @@ create table bookings (
 -- ---------------------------------------------------------------------
 -- FILES / NOTES / ACTIVITY LOG / NOTIFICATIONS
 -- ---------------------------------------------------------------------
-create table event_files (
+create table if not exists event_files (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid references events(id) on delete cascade,
   name text not null,
@@ -259,7 +297,7 @@ create table event_files (
   created_at timestamptz not null default now()
 );
 
-create table notes (
+create table if not exists notes (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid references events(id) on delete cascade,
   author_id uuid references profiles(id),
@@ -267,7 +305,7 @@ create table notes (
   created_at timestamptz not null default now()
 );
 
-create table activity_log (
+create table if not exists activity_log (
   id uuid primary key default uuid_generate_v4(),
   type activity_type not null,
   actor_id uuid references profiles(id),
@@ -277,7 +315,7 @@ create table activity_log (
   created_at timestamptz not null default now()
 );
 
-create table notifications (
+create table if not exists notifications (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references profiles(id) on delete cascade,
   title text not null,
@@ -296,8 +334,11 @@ begin
   return new;
 end; $$ language plpgsql;
 
+drop trigger if exists trg_tasks_updated on tasks;
 create trigger trg_tasks_updated before update on tasks
   for each row execute function set_updated_at();
+
+drop trigger if exists trg_bookings_updated on bookings;
 create trigger trg_bookings_updated before update on bookings
   for each row execute function set_updated_at();
 
@@ -309,6 +350,7 @@ begin
   return new;
 end; $$ language plpgsql;
 
+drop trigger if exists trg_task_completion on tasks;
 create trigger trg_task_completion before insert or update on tasks
   for each row execute function sync_task_completion();
 
@@ -324,6 +366,7 @@ begin
   return new;
 end; $$ language plpgsql;
 
+drop trigger if exists trg_task_activity on tasks;
 create trigger trg_task_activity after insert or update on tasks
   for each row execute function log_task_activity();
 
@@ -335,6 +378,7 @@ begin
   return new;
 end; $$ language plpgsql;
 
+drop trigger if exists trg_notify_assignment on task_assignees;
 create trigger trg_notify_assignment after insert on task_assignees
   for each row execute function notify_task_assignment();
 
