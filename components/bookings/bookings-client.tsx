@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { FileUpload } from "@/components/ui/file-upload";
 import { createClient } from "@/lib/supabase/client";
 import {
   BOOKING_CATEGORY_LABELS,
@@ -216,6 +217,7 @@ function EditBookingDialog({
     advance_paid: booking.advance_paid ?? 0,
     balance_due: booking.balance_due ?? 0,
     contract_signed: booking.contract_signed,
+    contract_url: booking.contract_url ?? null as string | null,
     trial_scheduled_at: booking.trial_scheduled_at ? booking.trial_scheduled_at.slice(0, 16) : "",
     notes: booking.notes ?? "",
   });
@@ -266,6 +268,9 @@ function EditBookingDialog({
             <input type="checkbox" checked={form.contract_signed} onChange={(e) => setForm({ ...form, contract_signed: e.target.checked })} />
             Contract signed
           </label>
+          <Field label="Contract file">
+            <FileUpload bucket="contracts" pathPrefix={booking.id} value={form.contract_url} onChange={(url) => setForm({ ...form, contract_url: url })} label="Upload contract" />
+          </Field>
           <Field label="Notes"><textarea className="input" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
           <Button className="w-full" onClick={save}>Save booking</Button>
         </div>

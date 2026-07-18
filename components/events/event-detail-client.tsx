@@ -9,6 +9,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import type { WeddingEvent, Task, ShoppingItem, BudgetLine, Expense } from "@/types/domain";
 import { EVENT_GRADIENTS } from "@/types/domain";
 import { formatCurrency, formatDate, getTaskUrgency, URGENCY_STYLES } from "@/lib/utils";
+import { QuickNotes } from "@/components/notes/quick-notes";
 
 const TABS = ["Overview", "Tasks", "Budget", "Shopping", "Notes"] as const;
 
@@ -110,14 +111,7 @@ export function EventDetailClient({
         </div>
       )}
 
-      {tab === "Notes" && (
-        <div className="space-y-2">
-          {notes.map((n) => (
-            <Card key={n.id} className="p-3"><p className="text-sm">{n.body}</p></Card>
-          ))}
-          {notes.length === 0 && <p className="text-sm text-muted-foreground">No notes yet.</p>}
-        </div>
-      )}
+      {tab === "Notes" && <QuickNotes eventId={event.id} />}
     </div>
   );
 }

@@ -16,6 +16,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, TaskPriority, WeddingEvent, Profile } from "@/types/domain";
 import { getTaskUrgency, URGENCY_STYLES, formatDate, initials } from "@/lib/utils";
 import { fireConfetti } from "@/lib/confetti";
+import { TaskComments } from "@/components/tasks/task-comments";
+import { TaskCalendar } from "@/components/tasks/task-calendar";
 
 const STATUS_COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: "not_started", label: "Not Started" },
@@ -33,7 +35,8 @@ export function TasksClient({
   initialTasks, events, profiles, currentUser,
 }: { initialTasks: Task[]; events: WeddingEvent[]; profiles: Profile[]; currentUser: Profile | null }) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [view, setView] = useState<"kanban" | "table">("kanban");
+  const [view, setView] = useState<"kanban" | "table" | "calendar">("kanban");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
   const supabase = createClient();
@@ -80,6 +83,9 @@ export function TasksClient({
           <button onClick={() => setView("table")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "table" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
             <Table2 className="h-3.5 w-3.5" /> Table
           </button>
+          <button onClick={() => setView("calendar")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "calendar" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
+            <CalendarIcon className="h-3.5 w-3.5" /> Calendar
+          </button>
         </div>
 
         <select value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="input w-auto py-1.5 text-xs">
@@ -112,8 +118,21 @@ export function TasksClient({
           </div>
           <DragOverlay>{activeTask && <TaskCard task={activeTask} draggable={false} canEdit={canEdit(activeTask)} />}</DragOverlay>
         </DndContext>
-      ) : (
+      ) : view === "table" ? (
         <TaskTable tasks={visibleTasks} onStatusChange={moveTask} canEdit={canEdit} />
+      ) : (
+        <TaskCalendar tasks={visibleTasks} onSelectTask={setSelectedTask} />
+      )}
+
+      {selectedTask && (
+        <TaskDetailDialog
+          task={selectedTask}
+          canEdit={canEdit(selectedTask)}
+          controlledOpen
+          onOpenChange={(o) => !o && setSelectedTask(null)}
+        >
+          <span />
+        </TaskDetailDialog>
       )}
     </div>
   );
@@ -237,9 +256,16 @@ function TaskTable({ tasks, onStatusChange, canEdit }: { tasks: Task[]; onStatus
   );
 }
 
-function TaskDetailDialog({ task, canEdit, children }: { task: Task; canEdit: boolean; children: React.ReactNode }) {
+function TaskDetailDialog({
+  task, canEdit, children, controlledOpen, onOpenChange,
+}: {
+  task: Task; canEdit: boolean; children: React.ReactNode;
+  controlledOpen?: boolean; onOpenChange?: (open: boolean) => void;
+}) {
   const supabase = createClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? true : internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [desc, setDesc] = useState(task.description ?? "");
   const [pct, setPct] = useState(task.completion_pct);
 
@@ -299,6 +325,9 @@ function TaskDetailDialog({ task, canEdit, children }: { task: Task; canEdit: bo
           )}
           {canEdit && <Button className="w-full" onClick={save}>Save changes</Button>}
           {!canEdit && <p className="text-center text-xs text-muted-foreground">Only the assignee or admin can edit this task.</p>}
+          <div className="border-t border-border pt-4">
+            {open && <TaskComments taskId={task.id} />}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

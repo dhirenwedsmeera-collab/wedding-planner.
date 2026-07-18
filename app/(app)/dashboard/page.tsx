@@ -6,6 +6,7 @@ import { BookingStatusWidget } from "@/components/dashboard/booking-status-widge
 import { EventStatusGrid } from "@/components/dashboard/event-status-grid";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { QuickNotes } from "@/components/notes/quick-notes";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { CheckCircle2, AlertTriangle, ShoppingBag, Wallet } from "lucide-react";
 import type { Task, Booking, WeddingEvent, ShoppingItem, BudgetLine, Expense } from "@/types/domain";
@@ -94,7 +95,10 @@ export default async function DashboardPage() {
         <BookingStatusWidget bookings={allBookings} />
       </div>
 
-      <ActivityFeed items={(activity ?? []) as any} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ActivityFeed items={(activity ?? []) as any} />
+        <QuickNotes />
+      </div>
     </div>
   );
 }

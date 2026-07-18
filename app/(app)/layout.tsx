@@ -11,25 +11,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   } = await supabase.auth.getUser();
 
   let profile: Profile | null = null;
-  let unreadCount = 0;
+  let notifications: any[] = [];
 
   if (user) {
     const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
     profile = data as Profile | null;
 
-    const { count } = await supabase
+    const { data: notifs } = await supabase
       .from("notifications")
-      .select("*", { count: "exact", head: true })
+      .select("*")
       .eq("user_id", user.id)
-      .eq("is_read", false);
-    unreadCount = count ?? 0;
+      .order("created_at", { ascending: false })
+      .limit(20);
+    notifications = notifs ?? [];
   }
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar profile={profile} unreadCount={unreadCount} />
+        <Topbar profile={profile} notifications={notifications} />
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">{children}</main>
       </div>
       <MobileNav />

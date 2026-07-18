@@ -401,6 +401,19 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
 - Vendors: contact directory with category, rating, advance/balance
 - Realtime: every page above refreshes live for everyone automatically via
   Supabase Realtime
+- Notifications: bell icon opens a real panel (not just a count) — click to
+  mark read, "mark all read", links straight to the relevant task
+- Task comments: every task has a real comment thread, anyone signed in can
+  post
+- Quick notes: a running notes feed on the dashboard (general) and on each
+  event's page (scoped to that event) — post and delete your own notes
+- Receipt & contract uploads: shopping items and bookings now have a real
+  "Upload" button that stores the file in Supabase Storage and links back to
+  it — not just a text field
+- Task Calendar view: a full month grid alongside Kanban and Table, click any
+  day's task to open it
+- Global search: the search box in the header actually searches tasks,
+  bookings, guests, and vendors as you type
 
 Every page above reads and writes real data through Supabase — nothing is
 mock data. The whole app is feature-complete against the original spec.
