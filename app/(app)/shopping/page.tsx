@@ -5,7 +5,7 @@ import { RealtimeRefresher } from "@/components/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
-const CATEGORIES = ["Clothes", "Jewelry", "Decorations", "Flowers", "Food", "Return Gifts", "Wedding Cards", "Stage", "Lighting", "Other"];
+const CATEGORIES = ["Outfits", "Clothes", "Jewelry", "Decorations", "Flowers", "Food", "Return Gifts", "Wedding Cards", "Stage", "Lighting", "Other"];
 
 export default async function ShoppingPage() {
   const supabase = createClient();

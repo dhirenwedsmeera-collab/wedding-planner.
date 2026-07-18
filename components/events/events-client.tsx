@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Archive, ExternalLink } from "lucide-react";
+import { Plus, Archive, ExternalLink, Users, Shirt, Sparkles as DecorIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -16,8 +16,11 @@ import { formatDate } from "@/lib/utils";
 const THEMES = ["mehendi", "haldi", "nikah", "reception", "emerald"];
 
 export function EventsClient({
-  initialEvents, progressByEvent, isAdmin,
-}: { initialEvents: WeddingEvent[]; progressByEvent: Record<string, number>; isAdmin: boolean }) {
+  initialEvents, progressByEvent, guestCountByEvent, outfitPctByEvent, decorPctByEvent, isAdmin,
+}: {
+  initialEvents: WeddingEvent[]; progressByEvent: Record<string, number>; isAdmin: boolean;
+  guestCountByEvent?: Record<string, number>; outfitPctByEvent?: Record<string, number>; decorPctByEvent?: Record<string, number>;
+}) {
   const [events, setEvents] = useState(initialEvents.filter((e) => !e.is_archived));
   const supabase = createClient();
 
@@ -50,6 +53,19 @@ export function EventsClient({
                     <span className="font-semibold">{progressByEvent[e.id] ?? 0}%</span>
                   </div>
                   <ProgressBar value={progressByEvent[e.id] ?? 0} height="h-2" />
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    {guestCountByEvent && guestCountByEvent[e.id] > 0 && (
+                      <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {guestCountByEvent[e.id]} guests</span>
+                    )}
+                    {outfitPctByEvent && outfitPctByEvent[e.id] >= 0 && (
+                      <span className="flex items-center gap-1"><Shirt className="h-3 w-3" /> {outfitPctByEvent[e.id]}% outfits</span>
+                    )}
+                    {decorPctByEvent && decorPctByEvent[e.id] >= 0 && (
+                      <span className="flex items-center gap-1"><DecorIcon className="h-3 w-3" /> {decorPctByEvent[e.id]}% decor</span>
+                    )}
+                  </div>
+
                   <Link href={`/events/${e.slug}`} className="mt-4 flex items-center justify-center gap-1.5 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted">
                     Open <ExternalLink className="h-3.5 w-3.5" />
                   </Link>

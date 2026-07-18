@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCountdown, WEDDING_DATE } from "@/lib/utils";
+import { getCountdown } from "@/lib/utils";
 
-export function useCountdown() {
-  const [countdown, setCountdown] = useState(() => getCountdown(WEDDING_DATE));
+/** Pass null while the wedding date is still TBD (pending an auspicious date). */
+export function useCountdown(targetDate: Date | null) {
+  const [countdown, setCountdown] = useState(() => getCountdown(targetDate));
 
   useEffect(() => {
-    const interval = setInterval(() => setCountdown(getCountdown(WEDDING_DATE)), 1000);
+    setCountdown(getCountdown(targetDate));
+    if (!targetDate) return;
+    const interval = setInterval(() => setCountdown(getCountdown(targetDate)), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [targetDate?.getTime()]);
 
   return countdown;
 }

@@ -7,9 +7,10 @@ import { EventStatusGrid } from "@/components/dashboard/event-status-grid";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { QuickNotes } from "@/components/notes/quick-notes";
+import { KeyDecisionsWidget } from "@/components/dashboard/key-decisions-widget";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { CheckCircle2, AlertTriangle, ShoppingBag, Wallet } from "lucide-react";
-import type { Task, Booking, WeddingEvent, ShoppingItem, BudgetLine, Expense } from "@/types/domain";
+import type { Task, Booking, WeddingEvent, ShoppingItem, BudgetLine, Expense, KeyDecision, WeddingSettings, Profile } from "@/types/domain";
 import { formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,8 @@ export default async function DashboardPage() {
     { data: budgetLines },
     { data: expenses },
     { data: activity },
+    { data: weddingSettings },
+    { data: keyDecisions },
   ] = await Promise.all([
     user ? supabase.from("profiles").select("*").eq("id", user.id).single() : Promise.resolve({ data: null }),
     supabase.from("events").select("*").eq("is_archived", false).order("sort_order"),
@@ -38,7 +41,12 @@ export default async function DashboardPage() {
     supabase.from("budget_lines").select("*"),
     supabase.from("expenses").select("*"),
     supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(8),
+    supabase.from("wedding_settings").select("*").eq("id", true).single(),
+    supabase.from("key_decisions").select("*").order("sort_order"),
   ]);
+
+  const { data: guestEventsRaw } = await supabase.from("guest_events").select("*");
+  const guestEvents = guestEventsRaw ?? [];
 
   const allTasks: Task[] = tasks ?? [];
   const allEvents: WeddingEvent[] = events ?? [];
@@ -46,6 +54,9 @@ export default async function DashboardPage() {
   const allShopping: ShoppingItem[] = shoppingItems ?? [];
   const allBudget: BudgetLine[] = budgetLines ?? [];
   const allExpenses: Expense[] = expenses ?? [];
+  const settings = weddingSettings as WeddingSettings | null;
+  const decisions: KeyDecision[] = keyDecisions ?? [];
+  const isAdmin = (profile as Profile | null)?.role === "admin";
 
   const completedTasks = allTasks.filter((t) => t.status === "completed").length;
   const overallPct = allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0;
@@ -58,12 +69,23 @@ export default async function DashboardPage() {
     .slice(0, 6);
 
   const progressByEvent: Record<string, number> = {};
+  const guestCountByEvent: Record<string, number> = {};
+  const outfitPctByEvent: Record<string, number> = {};
+  const decorPctByEvent: Record<string, number> = {};
   allEvents.forEach((e) => {
     const eventTasks = allTasks.filter((t) => t.event_id === e.id);
     progressByEvent[e.id] =
       eventTasks.length > 0
         ? Math.round((eventTasks.filter((t) => t.status === "completed").length / eventTasks.length) * 100)
         : 0;
+
+    guestCountByEvent[e.id] = guestEvents.filter((g: any) => g.event_id === e.id).length;
+
+    const outfits = allShopping.filter((s) => s.event_id === e.id && (s.category === "Outfits" || s.category === "Clothes"));
+    outfitPctByEvent[e.id] = outfits.length > 0 ? Math.round((outfits.filter((s) => s.is_purchased).length / outfits.length) * 100) : -1;
+
+    const decor = allShopping.filter((s) => s.event_id === e.id && s.category === "Decorations");
+    decorPctByEvent[e.id] = decor.length > 0 ? Math.round((decor.filter((s) => s.is_purchased).length / decor.length) * 100) : -1;
   });
 
   const purchasedCount = allShopping.filter((s) => s.is_purchased).length;
@@ -74,9 +96,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
-      <RealtimeRefresher tables={["tasks", "bookings", "shopping_items", "expenses", "budget_lines", "activity_log"]} />
+      <RealtimeRefresher tables={["tasks", "bookings", "shopping_items", "expenses", "budget_lines", "activity_log", "wedding_settings", "key_decisions", "guest_events"]} />
 
-      <DashboardHero firstName={firstName} overallPct={overallPct} />
+      <DashboardHero firstName={firstName} overallPct={overallPct} weddingDate={settings?.wedding_date ?? null} isAdmin={isAdmin} />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={CheckCircle2} label="Tasks Completed" value={`${completedTasks}/${allTasks.length}`} sub={`${overallPct}% overall`} />
@@ -85,7 +107,7 @@ export default async function DashboardPage() {
         <StatCard icon={Wallet} label="Budget Spent" value={formatCurrency(totalSpent)} sub={`of ${formatCurrency(totalPlanned)} planned`} tone="gold" />
       </div>
 
-      <EventStatusGrid events={allEvents} progressByEvent={progressByEvent} />
+      <EventStatusGrid events={allEvents} progressByEvent={progressByEvent} guestCountByEvent={guestCountByEvent} outfitPctByEvent={outfitPctByEvent} decorPctByEvent={decorPctByEvent} />
 
       <QuickActions />
 
@@ -96,9 +118,11 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ActivityFeed items={(activity ?? []) as any} />
+        <KeyDecisionsWidget initialDecisions={decisions} isAdmin={isAdmin} />
         <QuickNotes />
       </div>
+
+      <ActivityFeed items={(activity ?? []) as any} />
     </div>
   );
 }

@@ -294,6 +294,18 @@ is still empty. That's the next step.
    - `supabase/migrations/0002_rls.sql`
    - `supabase/migrations/0003_realtime_storage.sql`
    - `supabase/migrations/0004_seed.sql`
+   - `supabase/migrations/0006_wedding_planning_details.sql`
+   - `supabase/migrations/0007_event_sections.sql`
+
+   (`0005_fix_signup_trigger.sql` is only needed if you hit the specific
+   error described later in this guide — skip it otherwise.)
+
+   **Already have a working site and just came back for a new update?** You
+   don't need to redo Steps 1–2 from scratch — just open the new/changed
+   `.sql` file(s) mentioned in that update and run them in the SQL Editor the
+   same way (New query → paste → Run). All the files here are safe to run
+   more than once, so if you're ever unsure whether one already ran, run it
+   again.
 
    Each one needs its own fresh "New query" — don't paste them all into one box.
 
@@ -414,6 +426,27 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
   day's task to open it
 - Global search: the search box in the header actually searches tasks,
   bookings, guests, and vendors as you type
+- Real event structure: the original demo events (Mehendi/Haldi/Nikah/
+  Reception) are still there, untouched — alongside them, real events for
+  your actual wedding (Ganesh Puja, Pithi, and Santak for both bride's and
+  groom's sides, Mendhi, Wedding Ceremony, Reception, and a separate Registry
+  Wedding milestone for Summer 2027). Archive whichever set you don't need
+  from the Events page.
+- Key Decisions tracker on the dashboard: a Decided/Pending list seeded with
+  your open questions (guest numbers, budget, auspicious date, venue,
+  caterer) — check one off and optionally note the answer once it's settled
+- Wedding date is now TBD-aware: since your date depends on picking an
+  auspicious muhurat, the countdown shows "date TBD" until an admin sets it
+  (Dashboard → "Set wedding date"), instead of assuming a fixed date
+- Every event page now has extra tabs: **Guests** (link guests from your
+  full guest list to just this event, see RSVP status), **Outfits** and
+  **Decorations** (sorted vs. still needed, with budget/store/who's handling
+  it), and admins can **add fully custom tabs** to any event (e.g. "Photography
+  Shot List", "Transport") — each one a simple checklist anyone can add to and
+  tick off. Each event's Overview tab is now a proper mini-dashboard showing
+  Tasks/Budget/Shopping/Guests/Outfits/Decor progress at a glance, and the
+  Events grid (and dashboard) now show small guest/outfit/decor indicators
+  right on each event's card.
 
 Every page above reads and writes real data through Supabase — nothing is
 mock data. The whole app is feature-complete against the original spec.

@@ -170,6 +170,46 @@ export const BOOKING_CATEGORY_LABELS: Record<BookingCategory, string> = {
   other: "Others",
 };
 
+export interface WeddingSettings {
+  id: boolean;
+  wedding_date: string | null;
+  wedding_date_is_confirmed: boolean;
+  registry_wedding_date: string | null;
+  notes: string | null;
+}
+
+export type DecisionStatus = "pending" | "decided";
+
+export interface KeyDecision {
+  id: string;
+  label: string;
+  status: DecisionStatus;
+  answer: string | null;
+  category: string | null;
+  sort_order: number;
+}
+
+export type SectionItemStatus = "needed" | "sorted";
+
+export interface EventSection {
+  id: string;
+  event_id: string;
+  name: string;
+  icon: string | null;
+  sort_order: number;
+}
+
+export interface EventSectionItem {
+  id: string;
+  section_id: string;
+  label: string;
+  status: SectionItemStatus;
+  assigned_to: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_by: string | null;
+}
+
 export const EVENT_GRADIENTS: Record<string, string> = {
   mehendi: "bg-mehendi-gradient",
   haldi: "bg-haldi-gradient",

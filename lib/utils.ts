@@ -8,14 +8,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const WEDDING_DATE = new Date(
-  process.env.NEXT_PUBLIC_WEDDING_DATE || "2027-07-26T00:00:00"
+/** Fallback only — the real, admin-editable date lives in the `wedding_settings`
+ * table since the actual date is TBD until an auspicious date is chosen. */
+export const FALLBACK_WEDDING_DATE = new Date(
+  process.env.NEXT_PUBLIC_WEDDING_DATE || "2028-07-01T00:00:00"
 );
+/** @deprecated use FALLBACK_WEDDING_DATE, or better, wedding_settings.wedding_date from the database */
+export const WEDDING_DATE = FALLBACK_WEDDING_DATE;
 
 /** Planning is assumed to start the day the app went live / project kicked off. */
 export const PLANNING_START_DATE = new Date("2026-01-01T00:00:00");
 
-export function getCountdown(target: Date = WEDDING_DATE) {
+export function getCountdown(target: Date | null) {
+  if (!target) return { totalSeconds: 0, days: 0, weeks: 0, hours: 0, minutes: 0, seconds: 0, isTbd: true as const };
   const now = new Date();
   const totalSeconds = Math.max(0, differenceInSeconds(target, now));
   const days = Math.floor(totalSeconds / 86400);
@@ -23,13 +28,14 @@ export function getCountdown(target: Date = WEDDING_DATE) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = Math.floor(totalSeconds % 60);
   const weeks = Math.floor(days / 7);
-  return { totalSeconds, days, weeks, hours, minutes, seconds };
+  return { totalSeconds, days, weeks, hours, minutes, seconds, isTbd: false as const };
 }
 
 export function getPlanningElapsedPct(
   start: Date = PLANNING_START_DATE,
-  end: Date = WEDDING_DATE
+  end: Date | null = FALLBACK_WEDDING_DATE
 ) {
+  if (!end) return 0;
   const total = differenceInCalendarDays(end, start);
   const elapsed = differenceInCalendarDays(new Date(), start);
   if (total <= 0) return 100;
