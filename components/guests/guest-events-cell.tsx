@@ -26,7 +26,7 @@ export function GuestEventsCell({
   const [open, setOpen] = useState(false);
   const linkedEvents = events.filter((e) => links.some((l) => l.event_id === e.id));
 
-  async function link(eventId: string) {
+  async function linkEvent(eventId: string) {
     const next = [...links, { guest_id: guestId, event_id: eventId, rsvp_status: "pending" as RsvpStatus }];
     onChange(next);
     await supabase.from("guest_events").insert({ guest_id: guestId, event_id: eventId, rsvp_status: "pending" });
@@ -94,7 +94,7 @@ export function GuestEventsCell({
                     </div>
                   ) : (
                     isAdmin && (
-                      <button onClick={() => link(e.id)} className="shrink-0 rounded-lg border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground hover:border-gold-400 hover:text-foreground">
+                      <button onClick={() => linkEvent(e.id)} className="shrink-0 rounded-lg border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground hover:border-gold-400 hover:text-foreground">
                         Invite
                       </button>
                     )
