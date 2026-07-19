@@ -7,48 +7,71 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
-import type { Guest, RsvpStatus } from "@/types/domain";
+import type { Guest, RsvpStatus, GuestEventLink } from "@/types/domain";
 
 const RSVP_BADGE: Record<RsvpStatus, "green" | "red" | "yellow" | "outline"> = {
   confirmed: "green", declined: "red", pending: "yellow", no_response: "outline",
 };
+const RSVP_LABEL: Record<RsvpStatus, string> = {
+  confirmed: "Confirmed", declined: "Declined", pending: "Pending", no_response: "No response",
+};
+const RSVP_OPTIONS: RsvpStatus[] = ["pending", "confirmed", "declined", "no_response"];
 
 export function EventGuests({
-  eventId, allGuests, linkedGuestIds,
-}: { eventId: string; allGuests: Guest[]; linkedGuestIds: string[] }) {
+  eventId, allGuests, initialLinks, isAdmin,
+}: { eventId: string; allGuests: Guest[]; initialLinks: GuestEventLink[]; isAdmin: boolean }) {
   const supabase = createClient();
-  const [linked, setLinked] = useState(new Set(linkedGuestIds));
+  const [links, setLinks] = useState(initialLinks);
 
-  const eventGuests = useMemo(() => allGuests.filter((g) => linked.has(g.id)), [allGuests, linked]);
-  const confirmedCount = eventGuests.filter((g) => g.rsvp_status === "confirmed").length;
+  const eventGuests = useMemo(
+    () => links.map((l) => ({ link: l, guest: allGuests.find((g) => g.id === l.guest_id) })).filter((x) => x.guest),
+    [links, allGuests]
+  );
+  const confirmedCount = links.filter((l) => l.rsvp_status === "confirmed").length;
+  const linkedIds = new Set(links.map((l) => l.guest_id));
 
   async function unlink(guestId: string) {
-    setLinked((prev) => { const next = new Set(prev); next.delete(guestId); return next; });
+    setLinks((prev) => prev.filter((l) => l.guest_id !== guestId));
     await supabase.from("guest_events").delete().eq("guest_id", guestId).eq("event_id", eventId);
   }
 
   async function link(guestId: string) {
-    setLinked((prev) => new Set(prev).add(guestId));
-    await supabase.from("guest_events").insert({ guest_id: guestId, event_id: eventId });
+    setLinks((prev) => [...prev, { guest_id: guestId, event_id: eventId, rsvp_status: "pending" }]);
+    await supabase.from("guest_events").insert({ guest_id: guestId, event_id: eventId, rsvp_status: "pending" });
+  }
+
+  async function setRsvp(guestId: string, rsvp_status: RsvpStatus) {
+    setLinks((prev) => prev.map((l) => (l.guest_id === guestId ? { ...l, rsvp_status } : l)));
+    await supabase.from("guest_events").update({ rsvp_status }).eq("guest_id", guestId).eq("event_id", eventId);
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{confirmedCount} confirmed of {eventGuests.length} invited to this event</p>
-        <AddGuestToEventDialog allGuests={allGuests} linkedIds={linked} onLink={link} />
+        <AddGuestToEventDialog allGuests={allGuests} linkedIds={linkedIds} onLink={link} />
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {eventGuests.map((g) => (
-          <Card key={g.id} className="flex items-center justify-between p-3">
+        {eventGuests.map(({ link, guest }) => (
+          <Card key={guest!.id} className="flex items-center justify-between p-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{g.full_name}</p>
-              <p className="text-xs capitalize text-muted-foreground">{g.side} side · {g.category}</p>
+              <p className="truncate text-sm font-medium">{guest!.full_name}</p>
+              <p className="text-xs capitalize text-muted-foreground">{guest!.side} side · {guest!.category}</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={RSVP_BADGE[g.rsvp_status]}>{g.rsvp_status.replace("_", " ")}</Badge>
-              <button onClick={() => unlink(g.id)} className="text-muted-foreground hover:text-red-600">
+            <div className="flex items-center gap-1.5">
+              {isAdmin ? (
+                <select
+                  value={link.rsvp_status}
+                  onChange={(e) => setRsvp(guest!.id, e.target.value as RsvpStatus)}
+                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs"
+                >
+                  {RSVP_OPTIONS.map((s) => <option key={s} value={s}>{RSVP_LABEL[s]}</option>)}
+                </select>
+              ) : (
+                <Badge variant={RSVP_BADGE[link.rsvp_status]}>{RSVP_LABEL[link.rsvp_status]}</Badge>
+              )}
+              <button onClick={() => unlink(guest!.id)} className="text-muted-foreground hover:text-red-600">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -79,7 +102,7 @@ function AddGuestToEventDialog({
       <DialogTrigger asChild>
         <Button size="sm"><UserPlus className="h-3.5 w-3.5" /> Add guests</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[80vh] overflow-y-auto">
+      <DialogContent className="overflow-y-auto">
         <DialogHeader><DialogTitle>Add guests to this event</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="relative">

@@ -16,10 +16,11 @@ import { formatDate } from "@/lib/utils";
 const THEMES = ["mehendi", "haldi", "nikah", "reception", "emerald"];
 
 export function EventsClient({
-  initialEvents, progressByEvent, guestCountByEvent, outfitPctByEvent, decorPctByEvent, isAdmin,
+  initialEvents, progressByEvent, guestCountByEvent, confirmedGuestByEvent, outfitPctByEvent, decorPctByEvent, isAdmin,
 }: {
   initialEvents: WeddingEvent[]; progressByEvent: Record<string, number>; isAdmin: boolean;
-  guestCountByEvent?: Record<string, number>; outfitPctByEvent?: Record<string, number>; decorPctByEvent?: Record<string, number>;
+  guestCountByEvent?: Record<string, number>; confirmedGuestByEvent?: Record<string, number>;
+  outfitPctByEvent?: Record<string, number>; decorPctByEvent?: Record<string, number>;
 }) {
   const [events, setEvents] = useState(initialEvents.filter((e) => !e.is_archived));
   const supabase = createClient();
@@ -56,7 +57,7 @@ export function EventsClient({
 
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     {guestCountByEvent && guestCountByEvent[e.id] > 0 && (
-                      <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {guestCountByEvent[e.id]} guests</span>
+                      <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {confirmedGuestByEvent?.[e.id] ?? 0}/{guestCountByEvent[e.id]} guests</span>
                     )}
                     {outfitPctByEvent && outfitPctByEvent[e.id] >= 0 && (
                       <span className="flex items-center gap-1"><Shirt className="h-3 w-3" /> {outfitPctByEvent[e.id]}% outfits</span>

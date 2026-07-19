@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { EventDetailClient } from "@/components/events/event-detail-client";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
-import type { WeddingEvent, Task, ShoppingItem, BudgetLine, Expense, Guest, EventSection, EventSectionItem, Profile } from "@/types/domain";
+import type { WeddingEvent, Task, ShoppingItem, BudgetLine, Expense, Guest, EventSection, EventSectionItem, Profile, GuestEventLink } from "@/types/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +47,7 @@ export default async function EventDetailPage({ params }: { params: { slug: stri
         expenses={(expenses ?? []) as Expense[]}
         notes={(notes ?? []) as any[]}
         allGuests={(allGuests ?? []) as Guest[]}
-        linkedGuestIds={(guestEvents ?? []).map((g: any) => g.guest_id)}
+        guestLinks={(guestEvents ?? []) as GuestEventLink[]}
         sections={(sections ?? []) as EventSection[]}
         sectionItems={(sectionItems ?? []) as EventSectionItem[]}
         profiles={(profiles ?? []) as Profile[]}

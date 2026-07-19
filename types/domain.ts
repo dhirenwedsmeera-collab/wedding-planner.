@@ -210,6 +210,12 @@ export interface EventSectionItem {
   created_by: string | null;
 }
 
+export interface GuestEventLink {
+  guest_id: string;
+  event_id: string;
+  rsvp_status: RsvpStatus;
+}
+
 export const EVENT_GRADIENTS: Record<string, string> = {
   mehendi: "bg-mehendi-gradient",
   haldi: "bg-haldi-gradient",

@@ -6,7 +6,7 @@ import { ArrowLeft, Users, Shirt, Sparkles as DecorIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import type { WeddingEvent, Task, ShoppingItem, BudgetLine, Expense, Guest, EventSection, EventSectionItem, Profile } from "@/types/domain";
+import type { WeddingEvent, Task, ShoppingItem, BudgetLine, Expense, Guest, EventSection, EventSectionItem, Profile, GuestEventLink } from "@/types/domain";
 import { EVENT_GRADIENTS } from "@/types/domain";
 import { formatCurrency, formatDate, getTaskUrgency, URGENCY_STYLES } from "@/lib/utils";
 import { QuickNotes } from "@/components/notes/quick-notes";
@@ -17,12 +17,12 @@ import { AddSectionDialog, EventSectionPanel } from "@/components/events/event-s
 const BASE_TABS = ["Overview", "Tasks", "Budget", "Shopping", "Guests", "Outfits", "Decorations", "Notes"] as const;
 
 export function EventDetailClient({
-  event, tasks, shopping, budgetLines, expenses, notes, allGuests, linkedGuestIds,
+  event, tasks, shopping, budgetLines, expenses, notes, allGuests, guestLinks,
   sections: initialSections, sectionItems, profiles, isAdmin, currentUserId,
 }: {
   event: WeddingEvent; tasks: Task[]; shopping: ShoppingItem[];
   budgetLines: BudgetLine[]; expenses: Expense[]; notes: any[];
-  allGuests: Guest[]; linkedGuestIds: string[];
+  allGuests: Guest[]; guestLinks: GuestEventLink[];
   sections: EventSection[]; sectionItems: EventSectionItem[];
   profiles: Profile[]; isAdmin: boolean; currentUserId: string | null;
 }) {
@@ -35,8 +35,7 @@ export function EventDetailClient({
   const spent = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
   const purchased = shopping.filter((s) => s.is_purchased).length;
 
-  const eventGuests = allGuests.filter((g) => linkedGuestIds.includes(g.id));
-  const confirmedGuests = eventGuests.filter((g) => g.rsvp_status === "confirmed").length;
+  const confirmedGuests = guestLinks.filter((l) => l.rsvp_status === "confirmed").length;
 
   const outfitItems = shopping.filter((s) => s.category === "Outfits" || s.category === "Clothes");
   const outfitsBought = outfitItems.filter((s) => s.is_purchased).length;
@@ -87,7 +86,7 @@ export function EventDetailClient({
           <Card className="p-4"><p className="text-xs text-muted-foreground">Shopping</p><p className="font-display text-2xl font-semibold">{purchased}/{shopping.length}</p></Card>
           <Card className="p-4">
             <p className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="h-3 w-3" /> Guests</p>
-            <p className="font-display text-2xl font-semibold">{confirmedGuests}/{eventGuests.length}</p>
+            <p className="font-display text-2xl font-semibold">{confirmedGuests}/{guestLinks.length}</p>
           </Card>
           <Card className="p-4">
             <p className="flex items-center gap-1 text-xs text-muted-foreground"><Shirt className="h-3 w-3" /> Outfits</p>
@@ -150,7 +149,7 @@ export function EventDetailClient({
         </div>
       )}
 
-      {tab === "Guests" && <EventGuests eventId={event.id} allGuests={allGuests} linkedGuestIds={linkedGuestIds} />}
+      {tab === "Guests" && <EventGuests eventId={event.id} allGuests={allGuests} initialLinks={guestLinks} isAdmin={isAdmin} />}
 
       {tab === "Outfits" && (
         <EventCategoryList eventId={event.id} category="Outfits" items={outfitItems} profiles={profiles} isAdmin={isAdmin} currentUserId={currentUserId} />

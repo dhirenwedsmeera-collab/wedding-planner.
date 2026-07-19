@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
-import type { Guest, GuestCategory, WeddingSide, RsvpStatus, WeddingEvent } from "@/types/domain";
+import type { Guest, GuestCategory, WeddingSide, RsvpStatus, WeddingEvent, GuestEventLink } from "@/types/domain";
 import { whatsappLink } from "@/lib/utils";
 import { GuestEventsCell } from "@/components/guests/guest-events-cell";
 
@@ -19,15 +19,15 @@ export function GuestsClient({
   initialGuests, events, initialGuestEvents, isAdmin,
 }: {
   initialGuests: Guest[]; events: WeddingEvent[];
-  initialGuestEvents: { guest_id: string; event_id: string }[]; isAdmin: boolean;
+  initialGuestEvents: GuestEventLink[]; isAdmin: boolean;
 }) {
   const [guests, setGuests] = useState(initialGuests);
   const [search, setSearch] = useState("");
   const [sideFilter, setSideFilter] = useState<"all" | WeddingSide>("all");
-  const [guestEventMap, setGuestEventMap] = useState<Record<string, string[]>>(() => {
-    const map: Record<string, string[]> = {};
+  const [guestEventMap, setGuestEventMap] = useState<Record<string, GuestEventLink[]>>(() => {
+    const map: Record<string, GuestEventLink[]> = {};
     initialGuestEvents.forEach((ge) => {
-      map[ge.guest_id] = [...(map[ge.guest_id] ?? []), ge.event_id];
+      map[ge.guest_id] = [...(map[ge.guest_id] ?? []), ge];
     });
     return map;
   });
@@ -103,8 +103,9 @@ export function GuestsClient({
                     guestId={g.id}
                     guestName={g.full_name}
                     events={events}
-                    linkedEventIds={guestEventMap[g.id] ?? []}
-                    onChange={(ids) => setGuestEventMap((prev) => ({ ...prev, [g.id]: ids }))}
+                    links={guestEventMap[g.id] ?? []}
+                    onChange={(links) => setGuestEventMap((prev) => ({ ...prev, [g.id]: links }))}
+                    isAdmin={isAdmin}
                   />
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{g.food_preference ?? "—"}</td>

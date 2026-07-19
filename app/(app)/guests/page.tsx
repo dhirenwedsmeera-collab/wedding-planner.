@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GuestsClient } from "@/components/guests/guests-client";
-import type { Guest, Profile, WeddingEvent } from "@/types/domain";
+import type { Guest, Profile, WeddingEvent, GuestEventLink } from "@/types/domain";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export default async function GuestsPage() {
       <GuestsClient
         initialGuests={(guests ?? []) as Guest[]}
         events={(events ?? []) as WeddingEvent[]}
-        initialGuestEvents={(guestEvents ?? []) as { guest_id: string; event_id: string }[]}
+        initialGuestEvents={(guestEvents ?? []) as GuestEventLink[]}
         isAdmin={(me as Profile | null)?.role === "admin"}
       />
     </div>

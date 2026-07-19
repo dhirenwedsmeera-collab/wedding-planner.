@@ -70,6 +70,7 @@ export default async function DashboardPage() {
 
   const progressByEvent: Record<string, number> = {};
   const guestCountByEvent: Record<string, number> = {};
+  const confirmedGuestByEvent: Record<string, number> = {};
   const outfitPctByEvent: Record<string, number> = {};
   const decorPctByEvent: Record<string, number> = {};
   allEvents.forEach((e) => {
@@ -79,7 +80,9 @@ export default async function DashboardPage() {
         ? Math.round((eventTasks.filter((t) => t.status === "completed").length / eventTasks.length) * 100)
         : 0;
 
-    guestCountByEvent[e.id] = guestEvents.filter((g: any) => g.event_id === e.id).length;
+    const eventGuestLinks = guestEvents.filter((g: any) => g.event_id === e.id);
+    guestCountByEvent[e.id] = eventGuestLinks.length;
+    confirmedGuestByEvent[e.id] = eventGuestLinks.filter((g: any) => g.rsvp_status === "confirmed").length;
 
     const outfits = allShopping.filter((s) => s.event_id === e.id && (s.category === "Outfits" || s.category === "Clothes"));
     outfitPctByEvent[e.id] = outfits.length > 0 ? Math.round((outfits.filter((s) => s.is_purchased).length / outfits.length) * 100) : -1;
@@ -107,7 +110,7 @@ export default async function DashboardPage() {
         <StatCard icon={Wallet} label="Budget Spent" value={formatCurrency(totalSpent)} sub={`of ${formatCurrency(totalPlanned)} planned`} tone="gold" />
       </div>
 
-      <EventStatusGrid events={allEvents} progressByEvent={progressByEvent} guestCountByEvent={guestCountByEvent} outfitPctByEvent={outfitPctByEvent} decorPctByEvent={decorPctByEvent} />
+      <EventStatusGrid events={allEvents} progressByEvent={progressByEvent} guestCountByEvent={guestCountByEvent} confirmedGuestByEvent={confirmedGuestByEvent} outfitPctByEvent={outfitPctByEvent} decorPctByEvent={decorPctByEvent} />
 
       <QuickActions />
 

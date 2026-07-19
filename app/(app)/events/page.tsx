@@ -21,6 +21,7 @@ export default async function EventsPage() {
 
   const progressByEvent: Record<string, number> = {};
   const guestCountByEvent: Record<string, number> = {};
+  const confirmedGuestByEvent: Record<string, number> = {};
   const outfitPctByEvent: Record<string, number> = {};
   const decorPctByEvent: Record<string, number> = {};
 
@@ -30,7 +31,9 @@ export default async function EventsPage() {
       ? Math.round((eventTasks.filter((t: Task) => t.status === "completed").length / eventTasks.length) * 100)
       : 0;
 
-    guestCountByEvent[e.id] = (guestEvents ?? []).filter((g: any) => g.event_id === e.id).length;
+    const eventGuestLinks = (guestEvents ?? []).filter((g: any) => g.event_id === e.id);
+    guestCountByEvent[e.id] = eventGuestLinks.length;
+    confirmedGuestByEvent[e.id] = eventGuestLinks.filter((g: any) => g.rsvp_status === "confirmed").length;
 
     const outfits = (shopping ?? []).filter((s: ShoppingItem) => s.event_id === e.id && (s.category === "Outfits" || s.category === "Clothes"));
     outfitPctByEvent[e.id] = outfits.length > 0 ? Math.round((outfits.filter((s: ShoppingItem) => s.is_purchased).length / outfits.length) * 100) : -1;
@@ -50,6 +53,7 @@ export default async function EventsPage() {
         initialEvents={(events ?? []) as WeddingEvent[]}
         progressByEvent={progressByEvent}
         guestCountByEvent={guestCountByEvent}
+        confirmedGuestByEvent={confirmedGuestByEvent}
         outfitPctByEvent={outfitPctByEvent}
         decorPctByEvent={decorPctByEvent}
         isAdmin={(me as Profile | null)?.role === "admin"}

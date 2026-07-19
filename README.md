@@ -296,6 +296,7 @@ is still empty. That's the next step.
    - `supabase/migrations/0004_seed.sql`
    - `supabase/migrations/0006_wedding_planning_details.sql`
    - `supabase/migrations/0007_event_sections.sql`
+   - `supabase/migrations/0008_guest_event_rsvp.sql`
 
    (`0005_fix_signup_trigger.sql` is only needed if you hit the specific
    error described later in this guide — skip it otherwise.)
@@ -461,6 +462,14 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
   leave breathing room on narrow screens instead of touching the edges, and
   the Kanban board, event tabs, and category filters all swipe horizontally
   on phones instead of forcing a long vertical stack.
+
+- RSVP is now tracked **per event**, not just once overall — a guest can be
+  confirmed for the Mehendi but still pending for the Reception. Set it from
+  either place: the Events column on the main Guests page (open it, pick a
+  status per event from the dropdown), or from that event's own Guests tab.
+  Both read and write the exact same data, so they're always in sync, and
+  the confirmed/total counts shown on event cards (Events grid + dashboard)
+  now reflect real per-event RSVPs.
 
 Every page above reads and writes real data through Supabase — nothing is
 mock data. The whole app is feature-complete against the original spec.

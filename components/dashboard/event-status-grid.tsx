@@ -7,11 +7,12 @@ import { EVENT_GRADIENTS } from "@/types/domain";
 import { formatDate } from "@/lib/utils";
 
 export function EventStatusGrid({
-  events, progressByEvent, guestCountByEvent, outfitPctByEvent, decorPctByEvent,
+  events, progressByEvent, guestCountByEvent, confirmedGuestByEvent, outfitPctByEvent, decorPctByEvent,
 }: {
   events: WeddingEvent[];
   progressByEvent: Record<string, number>;
   guestCountByEvent?: Record<string, number>;
+  confirmedGuestByEvent?: Record<string, number>;
   outfitPctByEvent?: Record<string, number>;
   decorPctByEvent?: Record<string, number>;
 }) {
@@ -35,7 +36,7 @@ export function EventStatusGrid({
                 <ProgressBar value={pct} height="h-2" />
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                   {guestCountByEvent && guestCountByEvent[e.id] > 0 && (
-                    <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {guestCountByEvent[e.id]}</span>
+                    <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {confirmedGuestByEvent?.[e.id] ?? 0}/{guestCountByEvent[e.id]}</span>
                   )}
                   {outfitPctByEvent && outfitPctByEvent[e.id] >= 0 && (
                     <span className="flex items-center gap-1"><Shirt className="h-3 w-3" /> {outfitPctByEvent[e.id]}%</span>
