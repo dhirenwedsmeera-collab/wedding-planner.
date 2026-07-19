@@ -454,6 +454,14 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
   sync automatically in both directions — no separate data, no new SQL
   needed for this one.
 
+- Mobile optimized: the bottom tab bar now shows **all 8 sections** (Home,
+  Events, Tasks, Bookings, Budget, Shopping, Guests, Vendors) as a smooth
+  horizontal-scroll strip that auto-centers on whichever tab you're on —
+  nothing is hidden behind a "More" menu anymore. Popup forms/dialogs now
+  leave breathing room on narrow screens instead of touching the edges, and
+  the Kanban board, event tabs, and category filters all swipe horizontally
+  on phones instead of forcing a long vertical stack.
+
 Every page above reads and writes real data through Supabase — nothing is
 mock data. The whole app is feature-complete against the original spec.
 

@@ -109,12 +109,12 @@ export function BookingsClient({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-medium capitalize transition-colors ${
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium capitalize transition-colors ${
               filter === f
                 ? "border-emerald-700 bg-emerald-700 text-white"
                 : "border-border text-muted-foreground hover:bg-muted"
@@ -299,7 +299,7 @@ function AddBookingDialog({ events, onCreated }: { events: WeddingEvent[]; onCre
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="gold" className="ml-auto"><Plus className="h-3.5 w-3.5" /> Add booking</Button>
+        <Button size="sm" variant="gold" className="ml-auto shrink-0 whitespace-nowrap"><Plus className="h-3.5 w-3.5" /> Add booking</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Add a booking</DialogTitle></DialogHeader>

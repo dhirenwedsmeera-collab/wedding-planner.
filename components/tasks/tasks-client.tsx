@@ -105,7 +105,7 @@ export function TasksClient({
           onDragStart={(e) => setActiveId(e.active.id as string)}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-5">
             {STATUS_COLUMNS.map((col) => (
               <KanbanColumn
                 key={col.id}
@@ -143,7 +143,7 @@ function KanbanColumn({ id, label, tasks, canEditTask }: { id: TaskStatus; label
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-[200px] flex-col gap-2 rounded-2xl border border-dashed p-3 transition-colors ${isOver ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-border"}`}
+      className={`flex min-h-[200px] w-[82vw] shrink-0 snap-center flex-col gap-2 rounded-2xl border border-dashed p-3 transition-colors sm:w-auto sm:shrink ${isOver ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-border"}`}
     >
       <div className="mb-1 flex items-center justify-between px-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>

@@ -58,12 +58,12 @@ export function EventDetailClient({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
         {BASE_TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === t ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === t ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
           >
             {t}
           </button>
@@ -72,7 +72,7 @@ export function EventDetailClient({
           <button
             key={s.id}
             onClick={() => setTab(s.id)}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === s.id ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === s.id ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
           >
             {s.name}
           </button>

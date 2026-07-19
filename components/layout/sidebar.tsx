@@ -2,23 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard, ListChecks, CalendarHeart, ClipboardCheck,
-  Wallet, ShoppingBag, Users, Store, Sparkles, Sun, Moon,
-} from "lucide-react";
+import { Sparkles, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/events", label: "Events", icon: CalendarHeart },
-  { href: "/tasks", label: "Tasks", icon: ListChecks },
-  { href: "/bookings", label: "Bookings", icon: ClipboardCheck },
-  { href: "/budget", label: "Budget", icon: Wallet },
-  { href: "/shopping", label: "Shopping", icon: ShoppingBag },
-  { href: "/guests", label: "Guests", icon: Users },
-  { href: "/vendors", label: "Vendors", icon: Store },
-];
+import { NAV_ITEMS } from "@/components/layout/nav-items";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -32,12 +19,12 @@ export function Sidebar() {
         </div>
         <div>
           <p className="font-display text-sm font-semibold leading-tight">Dhiren &amp; Meera</p>
-          <p className="text-[11px] text-muted-foreground">Jul 26, 2027</p>
+          <p className="text-[11px] text-muted-foreground">Wedding Planner</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1">
-        {NAV.map((item) => {
+        {NAV_ITEMS.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
             <Link
@@ -51,7 +38,7 @@ export function Sidebar() {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              {item.fullLabel}
             </Link>
           );
         })}

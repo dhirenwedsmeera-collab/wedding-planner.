@@ -29,7 +29,7 @@ export function AddSectionDialog({ eventId, onCreated }: { eventId: string; onCr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-3.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-gold-400 hover:text-foreground">
+        <button className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-border px-3.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-gold-400 hover:text-foreground">
           <Plus className="h-3.5 w-3.5" /> Add tab
         </button>
       </DialogTrigger>

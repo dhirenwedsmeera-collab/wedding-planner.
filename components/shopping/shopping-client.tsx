@@ -49,10 +49,10 @@ export function ShoppingClient({
         <Card className="p-4"><p className="text-xs text-muted-foreground">Actual spend</p><p className="font-display text-2xl font-semibold">{formatCurrency(totalActual)}</p></Card>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => setCategoryFilter("all")} className={`rounded-full border px-3 py-1.5 text-xs font-medium ${categoryFilter === "all" ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground"}`}>All</button>
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+        <button onClick={() => setCategoryFilter("all")} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium ${categoryFilter === "all" ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground"}`}>All</button>
         {categories.map((c) => (
-          <button key={c} onClick={() => setCategoryFilter(c)} className={`rounded-full border px-3 py-1.5 text-xs font-medium ${categoryFilter === c ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground"}`}>{c}</button>
+          <button key={c} onClick={() => setCategoryFilter(c)} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium ${categoryFilter === c ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground"}`}>{c}</button>
         ))}
         {isAdmin && <AddItemDialog events={events} profiles={profiles} categories={categories} onCreated={(i) => setItems((prev) => [i, ...prev])} />}
       </div>
@@ -166,7 +166,7 @@ function AddItemDialog({ events, profiles, categories, onCreated }: { events: We
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button size="sm" className="ml-auto"><Plus className="h-3.5 w-3.5" /> Add item</Button></DialogTrigger>
+      <DialogTrigger asChild><Button size="sm" className="ml-auto shrink-0 whitespace-nowrap"><Plus className="h-3.5 w-3.5" /> Add item</Button></DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Add shopping item</DialogTitle></DialogHeader>
         <div className="space-y-3">
