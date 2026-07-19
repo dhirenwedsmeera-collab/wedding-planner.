@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GuestsClient } from "@/components/guests/guests-client";
-import type { Guest, Profile } from "@/types/domain";
+import type { Guest, Profile, WeddingEvent } from "@/types/domain";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 
 export const dynamic = "force-dynamic";
@@ -11,19 +11,26 @@ export default async function GuestsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: guests }, { data: me }] = await Promise.all([
+  const [{ data: guests }, { data: me }, { data: events }, { data: guestEvents }] = await Promise.all([
     supabase.from("guests").select("*").order("full_name"),
     user ? supabase.from("profiles").select("*").eq("id", user.id).single() : Promise.resolve({ data: null }),
+    supabase.from("events").select("*").eq("is_archived", false).order("sort_order"),
+    supabase.from("guest_events").select("*"),
   ]);
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
-      <RealtimeRefresher tables={["guests"]} />
+      <RealtimeRefresher tables={["guests", "guest_events"]} />
       <div>
         <h1 className="font-display text-2xl font-semibold">Guest List</h1>
         <p className="text-sm text-muted-foreground">RSVPs, invitations, and food preferences.</p>
       </div>
-      <GuestsClient initialGuests={(guests ?? []) as Guest[]} isAdmin={(me as Profile | null)?.role === "admin"} />
+      <GuestsClient
+        initialGuests={(guests ?? []) as Guest[]}
+        events={(events ?? []) as WeddingEvent[]}
+        initialGuestEvents={(guestEvents ?? []) as { guest_id: string; event_id: string }[]}
+        isAdmin={(me as Profile | null)?.role === "admin"}
+      />
     </div>
   );
 }

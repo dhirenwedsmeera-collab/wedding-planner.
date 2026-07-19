@@ -7,17 +7,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
-import type { Guest, GuestCategory, WeddingSide, RsvpStatus } from "@/types/domain";
+import type { Guest, GuestCategory, WeddingSide, RsvpStatus, WeddingEvent } from "@/types/domain";
 import { whatsappLink } from "@/lib/utils";
+import { GuestEventsCell } from "@/components/guests/guest-events-cell";
 
 const RSVP_COLOR: Record<RsvpStatus, "green" | "red" | "yellow" | "outline"> = {
   confirmed: "green", declined: "red", pending: "yellow", no_response: "outline",
 };
 
-export function GuestsClient({ initialGuests, isAdmin }: { initialGuests: Guest[]; isAdmin: boolean }) {
+export function GuestsClient({
+  initialGuests, events, initialGuestEvents, isAdmin,
+}: {
+  initialGuests: Guest[]; events: WeddingEvent[];
+  initialGuestEvents: { guest_id: string; event_id: string }[]; isAdmin: boolean;
+}) {
   const [guests, setGuests] = useState(initialGuests);
   const [search, setSearch] = useState("");
   const [sideFilter, setSideFilter] = useState<"all" | WeddingSide>("all");
+  const [guestEventMap, setGuestEventMap] = useState<Record<string, string[]>>(() => {
+    const map: Record<string, string[]> = {};
+    initialGuestEvents.forEach((ge) => {
+      map[ge.guest_id] = [...(map[ge.guest_id] ?? []), ge.event_id];
+    });
+    return map;
+  });
   const supabase = createClient();
 
   const filtered = useMemo(() => {
@@ -62,6 +75,7 @@ export function GuestsClient({ initialGuests, isAdmin }: { initialGuests: Guest[
               <th className="px-4 py-3">Category</th>
               <th className="px-4 py-3">Side</th>
               <th className="px-4 py-3">RSVP</th>
+              <th className="px-4 py-3">Events</th>
               <th className="px-4 py-3">Food</th>
               <th className="px-4 py-3">Contact</th>
             </tr>
@@ -83,6 +97,15 @@ export function GuestsClient({ initialGuests, isAdmin }: { initialGuests: Guest[
                   ) : (
                     <Badge variant={RSVP_COLOR[g.rsvp_status]}>{g.rsvp_status.replace("_", " ")}</Badge>
                   )}
+                </td>
+                <td className="px-4 py-3">
+                  <GuestEventsCell
+                    guestId={g.id}
+                    guestName={g.full_name}
+                    events={events}
+                    linkedEventIds={guestEventMap[g.id] ?? []}
+                    onChange={(ids) => setGuestEventMap((prev) => ({ ...prev, [g.id]: ids }))}
+                  />
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">{g.food_preference ?? "—"}</td>
                 <td className="px-4 py-3">

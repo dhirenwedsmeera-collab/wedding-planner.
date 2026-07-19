@@ -448,6 +448,12 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
   Events grid (and dashboard) now show small guest/outfit/decor indicators
   right on each event's card.
 
+- Guests list now has an **Events** column — click it to open a checklist of
+  every active event and tick which ones that guest is invited to. This uses
+  the exact same link as each event's own Guests tab, so the two stay in
+  sync automatically in both directions — no separate data, no new SQL
+  needed for this one.
+
 Every page above reads and writes real data through Supabase — nothing is
 mock data. The whole app is feature-complete against the original spec.
 
