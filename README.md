@@ -471,6 +471,14 @@ If you get stuck on any specific screen, tell me exactly what you're looking at
   the confirmed/total counts shown on event cards (Events grid + dashboard)
   now reflect real per-event RSVPs.
 
+- Events can now be **edited**, not just added and archived — admins get a
+  pencil icon on each event card (Events grid) and on the event's own page
+  header, to change the name, date, time, venue, description, and colour
+  theme (with a visual swatch picker matching the festive gradients). Since
+  every screen reads from the same event record, changes show up everywhere
+  that event appears — the Events grid, the dashboard, and the event's own
+  page — automatically, no new SQL required for this one.
+
 Every page above reads and writes real data through Supabase — nothing is
 mock data. The whole app is feature-complete against the original spec.
 

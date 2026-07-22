@@ -13,11 +13,12 @@ import { QuickNotes } from "@/components/notes/quick-notes";
 import { EventGuests } from "@/components/events/event-guests";
 import { EventCategoryList } from "@/components/events/event-category-list";
 import { AddSectionDialog, EventSectionPanel } from "@/components/events/event-sections";
+import { EditEventDialog } from "@/components/events/edit-event-dialog";
 
 const BASE_TABS = ["Overview", "Tasks", "Budget", "Shopping", "Guests", "Outfits", "Decorations", "Notes"] as const;
 
 export function EventDetailClient({
-  event, tasks, shopping, budgetLines, expenses, notes, allGuests, guestLinks,
+  event: initialEvent, tasks, shopping, budgetLines, expenses, notes, allGuests, guestLinks,
   sections: initialSections, sectionItems, profiles, isAdmin, currentUserId,
 }: {
   event: WeddingEvent; tasks: Task[]; shopping: ShoppingItem[];
@@ -26,6 +27,7 @@ export function EventDetailClient({
   sections: EventSection[]; sectionItems: EventSectionItem[];
   profiles: Profile[]; isAdmin: boolean; currentUserId: string | null;
 }) {
+  const [event, setEvent] = useState(initialEvent);
   const [tab, setTab] = useState<string>("Overview");
   const [sections, setSections] = useState(initialSections);
 
@@ -48,9 +50,15 @@ export function EventDetailClient({
         <ArrowLeft className="h-4 w-4" /> All events
       </Link>
 
-      <div className={`rounded-2xl p-6 text-white lg:p-8 ${EVENT_GRADIENTS[event.color_theme] ?? EVENT_GRADIENTS.emerald}`}>
+      <div className={`relative rounded-2xl p-6 text-white lg:p-8 ${EVENT_GRADIENTS[event.color_theme] ?? EVENT_GRADIENTS.emerald}`}>
+        {isAdmin && (
+          <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+            <EditEventDialog event={event} onSaved={(patch) => setEvent((prev) => ({ ...prev, ...patch }))} />
+          </div>
+        )}
         <h1 className="font-display text-3xl font-semibold">{event.name}</h1>
-        <p className="mt-1 text-sm text-white/85">{formatDate(event.event_date)}{event.venue ? ` · ${event.venue}` : ""}</p>
+        <p className="mt-1 text-sm text-white/85">{formatDate(event.event_date)}{event.event_time ? ` · ${event.event_time}` : ""}{event.venue ? ` · ${event.venue}` : ""}</p>
+        {event.description && <p className="mt-2 max-w-xl text-sm text-white/80">{event.description}</p>}
         <div className="mt-4 max-w-xs">
           <div className="mb-1 flex justify-between text-xs"><span>Overall progress</span><span className="font-semibold">{pct}%</span></div>
           <ProgressBar value={pct} height="h-2" />

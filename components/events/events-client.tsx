@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { WeddingEvent } from "@/types/domain";
 import { EVENT_GRADIENTS } from "@/types/domain";
 import { formatDate } from "@/lib/utils";
+import { EditEventDialog } from "@/components/events/edit-event-dialog";
 
 const THEMES = ["mehendi", "haldi", "nikah", "reception", "emerald"];
 
@@ -30,6 +31,10 @@ export function EventsClient({
     await supabase.from("events").update({ is_archived: true }).eq("id", id);
   }
 
+  function updateEvent(id: string, patch: Partial<WeddingEvent>) {
+    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  }
+
   return (
     <div className="space-y-4">
       {isAdmin && <AddEventDialog onCreated={(e) => setEvents((prev) => [...prev, e])} />}
@@ -42,9 +47,12 @@ export function EventsClient({
                   <p className="font-display text-xl font-semibold">{e.name}</p>
                   <p className="text-xs text-white/85">{formatDate(e.event_date)}{e.venue ? ` · ${e.venue}` : ""}</p>
                   {isAdmin && (
-                    <button onClick={() => archive(e.id)} className="absolute right-3 top-3 rounded-lg bg-white/15 p-1.5 hover:bg-white/25">
-                      <Archive className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="absolute right-3 top-3 flex gap-1.5">
+                      <EditEventDialog event={e} onSaved={(patch) => updateEvent(e.id, patch)} />
+                      <button onClick={() => archive(e.id)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 hover:bg-white/25">
+                        <Archive className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="p-4">
@@ -85,7 +93,9 @@ function AddEventDialog({ onCreated }: { onCreated: (e: WeddingEvent) => void })
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [venue, setVenue] = useState("");
+  const [description, setDescription] = useState("");
   const [theme, setTheme] = useState("emerald");
 
   async function create() {
@@ -93,12 +103,12 @@ function AddEventDialog({ onCreated }: { onCreated: (e: WeddingEvent) => void })
     const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     const { data, error } = await supabase
       .from("events")
-      .insert({ name, slug, event_date: date || null, venue: venue || null, color_theme: theme })
+      .insert({ name, slug, event_date: date || null, event_time: time || null, venue: venue || null, description: description || null, color_theme: theme })
       .select()
       .single();
     if (!error && data) onCreated(data as WeddingEvent);
     setOpen(false);
-    setName(""); setDate(""); setVenue("");
+    setName(""); setDate(""); setTime(""); setVenue(""); setDescription("");
   }
 
   return (
@@ -110,8 +120,12 @@ function AddEventDialog({ onCreated }: { onCreated: (e: WeddingEvent) => void })
         <DialogHeader><DialogTitle>New wedding event</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <input className="input" placeholder="e.g. Sangeet" value={name} onChange={(e) => setName(e.target.value)} />
-          <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
+          </div>
           <input className="input" placeholder="Venue (optional)" value={venue} onChange={(e) => setVenue(e.target.value)} />
+          <textarea className="input" rows={2} placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
           <select className="input" value={theme} onChange={(e) => setTheme(e.target.value)}>
             {THEMES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
