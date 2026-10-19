@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Phone } from "lucide-react";
+import { Plus, Search, Phone, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,9 @@ export function GuestsClient({
 }) {
   const [guests, setGuests] = useState(initialGuests);
   const [search, setSearch] = useState("");
-  const [sideFilter, setSideFilter] = useState<"all" | WeddingSide>("all");
+  const [sideFilter, setSideFilter] = useState<"all" | "bride" | "groom">("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | GuestCategory>("all");
+  const [rsvpFilter, setRsvpFilter] = useState<"all" | RsvpStatus>("all");
   const [guestEventMap, setGuestEventMap] = useState<Record<string, GuestEventLink[]>>(() => {
     const map: Record<string, GuestEventLink[]> = {};
     initialGuestEvents.forEach((ge) => {
@@ -37,9 +39,11 @@ export function GuestsClient({
     return guests.filter((g) => {
       const matchesSearch = g.full_name.toLowerCase().includes(search.toLowerCase());
       const matchesSide = sideFilter === "all" || g.side === sideFilter;
-      return matchesSearch && matchesSide;
+      const matchesCategory = categoryFilter === "all" || g.category === categoryFilter;
+      const matchesRsvp = rsvpFilter === "all" || g.rsvp_status === rsvpFilter;
+      return matchesSearch && matchesSide && matchesCategory && matchesRsvp;
     });
-  }, [guests, search, sideFilter]);
+  }, [guests, search, sideFilter, categoryFilter, rsvpFilter]);
 
   const confirmed = guests.filter((g) => g.rsvp_status === "confirmed").length;
 
@@ -61,9 +65,15 @@ export function GuestsClient({
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guests…" className="input pl-9" />
         </div>
-        {(["all", "bride", "groom", "both"] as const).map((s) => (
-          <button key={s} onClick={() => setSideFilter(s)} className={`rounded-full border px-3 py-1.5 text-xs font-medium capitalize ${sideFilter === s ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground"}`}>{s}</button>
-        ))}
+        <select aria-label="Filter by side" value={sideFilter} onChange={(e) => setSideFilter(e.target.value as typeof sideFilter)} className="input w-auto py-1.5 text-xs">
+          <option value="all">All sides</option><option value="bride">Bride</option><option value="groom">Groom</option>
+        </select>
+        <select aria-label="Filter by category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)} className="input w-auto py-1.5 text-xs">
+          <option value="all">All categories</option><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option>
+        </select>
+        <select aria-label="Filter by RSVP" value={rsvpFilter} onChange={(e) => setRsvpFilter(e.target.value as typeof rsvpFilter)} className="input w-auto py-1.5 text-xs">
+          <option value="all">All RSVP statuses</option><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="declined">Declined</option><option value="no_response">No response</option>
+        </select>
         {isAdmin && <AddGuestDialog onCreated={(g) => setGuests((prev) => [...prev, g])} />}
       </div>
 
@@ -83,7 +93,12 @@ export function GuestsClient({
           <tbody>
             {filtered.map((g) => (
               <tr key={g.id} className="border-b border-border last:border-0 hover:bg-muted/50">
-                <td className="px-4 py-3 font-medium">{g.full_name}</td>
+                <td className="px-4 py-3 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span>{g.full_name}</span>
+                    {isAdmin && <EditGuestDialog guest={g} onUpdated={(updated) => setGuests((prev) => prev.map((item) => item.id === updated.id ? updated : item))} />}
+                  </div>
+                </td>
                 <td className="px-4 py-3 capitalize">{g.category}</td>
                 <td className="px-4 py-3 capitalize">{g.side}</td>
                 <td className="px-4 py-3">
@@ -123,6 +138,63 @@ export function GuestsClient({
         {filtered.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">No guests match your search.</p>}
       </Card>
     </div>
+  );
+}
+
+function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Guest) => void }) {
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(guest.full_name);
+  const [category, setCategory] = useState<GuestCategory>(guest.category);
+  const [side, setSide] = useState<WeddingSide>(guest.side);
+  const [phone, setPhone] = useState(guest.phone ?? "");
+  const [email, setEmail] = useState(guest.email ?? "");
+  const [rsvp, setRsvp] = useState<RsvpStatus>(guest.rsvp_status);
+  const [food, setFood] = useState(guest.food_preference ?? "");
+  const [plusOnes, setPlusOnes] = useState(String(guest.plus_ones ?? 0));
+  const [notes, setNotes] = useState(guest.notes ?? "");
+  const [invitationSent, setInvitationSent] = useState(guest.invitation_sent);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    const changes = {
+      full_name: name.trim(), category, side, phone: phone.trim() || null,
+      email: email.trim() || null, rsvp_status: rsvp, food_preference: food.trim() || null,
+      plus_ones: Math.max(0, Number.parseInt(plusOnes, 10) || 0), notes: notes.trim() || null,
+      invitation_sent: invitationSent,
+    };
+    const { error } = await supabase.from("guests").update(changes).eq("id", guest.id);
+    setSaving(false);
+    if (error) {
+      alert(`Couldn't save guest details: ${error.message}`);
+      return;
+    }
+    onUpdated({ ...guest, ...changes });
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><button type="button" aria-label={`Edit ${guest.full_name}`} title="Edit guest" className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button></DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Edit guest details</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-xs text-muted-foreground">Full name<input className="input" value={name} onChange={(e) => setName(e.target.value)} /></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Category<select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option></select></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Side<select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}><option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option></select></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Phone<input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Email<input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <label className="space-y-1 text-xs text-muted-foreground">RSVP status<select className="input" value={rsvp} onChange={(e) => setRsvp(e.target.value as RsvpStatus)}><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="declined">Declined</option><option value="no_response">No response</option></select></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Food preference<input className="input" value={food} onChange={(e) => setFood(e.target.value)} /></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Plus ones<input type="number" min="0" className="input" value={plusOnes} onChange={(e) => setPlusOnes(e.target.value)} /></label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-2"><input type="checkbox" checked={invitationSent} onChange={(e) => setInvitationSent(e.target.checked)} /> Invitation sent</label>
+          <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">Notes<textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+          <Button className="w-full sm:col-span-2" onClick={save} disabled={saving || !name.trim()}>{saving ? "Saving..." : "Save guest details"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
