@@ -370,11 +370,23 @@ function TaskDetailDialog({
     if (!confirmed) return;
 
     setDeleting(true);
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    const { data: deletedTask, error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", task.id)
+      .select("id")
+      .maybeSingle();
     setDeleting(false);
 
     if (error) {
-      alert("Couldn't delete the task. Please try again.");
+      console.error("Task deletion failed:", error);
+      alert(`Couldn't delete the task: ${error.message}`);
+      return;
+    }
+
+    // Supabase can return no error when row-level security prevents a delete.
+    if (!deletedTask) {
+      alert("The task was not deleted. Your account may not have admin permission in the database. Please check the Supabase tasks delete policy.");
       return;
     }
 
