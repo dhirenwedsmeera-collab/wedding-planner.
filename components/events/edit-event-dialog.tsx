@@ -28,6 +28,9 @@ export function EditEventDialog({
     venue: event.venue ?? "",
     description: event.description ?? "",
     color_theme: event.color_theme,
+    color_primary: event.color_primary ?? "#166534",
+    color_secondary: event.color_secondary ?? "#f7f3e8",
+    color_accent: event.color_accent ?? "#d4a72c",
   });
 
   async function save() {
@@ -39,6 +42,9 @@ export function EditEventDialog({
       venue: form.venue || null,
       description: form.description || null,
       color_theme: form.color_theme,
+      color_primary: form.color_primary,
+      color_secondary: form.color_secondary,
+      color_accent: form.color_accent,
     };
     onSaved(patch);
     setOpen(false);
@@ -83,31 +89,35 @@ export function EditEventDialog({
             <textarea className="input" rows={3} placeholder="Optional" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </label>
 
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Colour theme</span>
-            <div className="grid grid-cols-1 gap-2">
-              {THEMES.map((t) => {
-                const gradient = EVENT_GRADIENTS[t.value] ?? EVENT_GRADIENTS.emerald;
-                const selected = form.color_theme === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setForm({ ...form, color_theme: t.value })}
-                    className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-emerald-600" : "border-border hover:bg-muted"}`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className={`h-6 w-10 rounded-lg ${gradient}`} />
-                      <span className="text-sm">{t.label}</span>
-                    </div>
-                    {selected && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
-                        <Check className="h-3 w-3" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            <div>
+              <span className="block text-sm font-medium">Event colours</span>
+              <span className="text-xs text-muted-foreground">Choose colours just for this event.</span>
+            </div>
+            {([
+              ["color_primary", "Primary colour"],
+              ["color_secondary", "Background colour"],
+              ["color_accent", "Accent colour"],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="flex items-center justify-between gap-3 text-sm">
+                <span>{label}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{form[key].toUpperCase()}</span>
+                  <input
+                    aria-label={label}
+                    type="color"
+                    className="h-9 w-12 cursor-pointer rounded border border-border bg-transparent p-1"
+                    value={form[key]}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  />
+                </span>
+              </label>
+            ))}
+            <div className="rounded-lg p-4 text-sm font-medium" style={{ background: form.color_secondary, color: form.color_primary, border: `2px solid ${form.color_accent}` }}>
+              Theme preview · {event.name}
+              <div className="mt-2 inline-block rounded-full px-3 py-1 text-xs text-white" style={{ background: form.color_primary }}>
+                Accent button
+              </div>
             </div>
           </div>
 
