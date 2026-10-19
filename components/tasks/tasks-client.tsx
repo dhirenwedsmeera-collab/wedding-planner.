@@ -7,7 +7,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
-import { LayoutGrid, Table2, Plus, Calendar as CalendarIcon } from "lucide-react";
+import { LayoutGrid, Table2, Plus, Calendar as CalendarIcon, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,16 @@ export function TasksClient({
 
   function canEdit(t: Task) {
     return isAdmin || (t.assignees ?? []).some((a) => a.id === currentUser?.id);
+  }
+
+  function updateTask(updatedTask: Task) {
+    setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
+    setSelectedTask((prev) => (prev?.id === updatedTask.id ? updatedTask : prev));
+  }
+
+  function removeTask(taskId: string) {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setSelectedTask((prev) => (prev?.id === taskId ? null : prev));
   }
 
   async function moveTask(id: string, status: TaskStatus) {
@@ -113,13 +123,16 @@ export function TasksClient({
                 label={col.label}
                 tasks={visibleTasks.filter((t) => t.status === col.id)}
                 canEditTask={canEdit}
+                isAdmin={isAdmin}
+                onUpdated={updateTask}
+                onDeleted={removeTask}
               />
             ))}
           </div>
-          <DragOverlay>{activeTask && <TaskCard task={activeTask} draggable={false} canEdit={canEdit(activeTask)} />}</DragOverlay>
+          <DragOverlay>{activeTask && <TaskCard task={activeTask} draggable={false} canEdit={canEdit(activeTask)} isAdmin={isAdmin} onUpdated={updateTask} onDeleted={removeTask} />}</DragOverlay>
         </DndContext>
       ) : view === "table" ? (
-        <TaskTable tasks={visibleTasks} onStatusChange={moveTask} canEdit={canEdit} />
+        <TaskTable tasks={visibleTasks} onStatusChange={moveTask} canEdit={canEdit} isAdmin={isAdmin} onUpdated={updateTask} onDeleted={removeTask} />
       ) : (
         <TaskCalendar tasks={visibleTasks} onSelectTask={setSelectedTask} />
       )}
@@ -128,6 +141,9 @@ export function TasksClient({
         <TaskDetailDialog
           task={selectedTask}
           canEdit={canEdit(selectedTask)}
+          isAdmin={isAdmin}
+          onUpdated={updateTask}
+          onDeleted={removeTask}
           controlledOpen
           onOpenChange={(o) => !o && setSelectedTask(null)}
         >
@@ -138,7 +154,17 @@ export function TasksClient({
   );
 }
 
-function KanbanColumn({ id, label, tasks, canEditTask }: { id: TaskStatus; label: string; tasks: Task[]; canEditTask: (t: Task) => boolean }) {
+function KanbanColumn({
+  id, label, tasks, canEditTask, isAdmin, onUpdated, onDeleted,
+}: {
+  id: TaskStatus;
+  label: string;
+  tasks: Task[];
+  canEditTask: (t: Task) => boolean;
+  isAdmin: boolean;
+  onUpdated: (task: Task) => void;
+  onDeleted: (taskId: string) => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div
@@ -151,27 +177,57 @@ function KanbanColumn({ id, label, tasks, canEditTask }: { id: TaskStatus; label
       </div>
       <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         {tasks.map((t) => (
-          <SortableTaskCard key={t.id} task={t} canEdit={canEditTask(t)} />
+          <SortableTaskCard
+            key={t.id}
+            task={t}
+            canEdit={canEditTask(t)}
+            isAdmin={isAdmin}
+            onUpdated={onUpdated}
+            onDeleted={onDeleted}
+          />
         ))}
       </SortableContext>
     </div>
   );
 }
 
-function SortableTaskCard({ task, canEdit }: { task: Task; canEdit: boolean }) {
+function SortableTaskCard({
+  task, canEdit, isAdmin, onUpdated, onDeleted,
+}: {
+  task: Task;
+  canEdit: boolean;
+  isAdmin: boolean;
+  onUpdated: (task: Task) => void;
+  onDeleted: (taskId: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id, disabled: !canEdit });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}>
-      <TaskCard task={task} canEdit={canEdit} />
+      <TaskCard task={task} canEdit={canEdit} isAdmin={isAdmin} onUpdated={onUpdated} onDeleted={onDeleted} />
     </div>
   );
 }
 
-function TaskCard({ task, draggable = true, canEdit }: { task: Task; draggable?: boolean; canEdit: boolean }) {
+function TaskCard({
+  task, draggable = true, canEdit, isAdmin = false, onUpdated, onDeleted,
+}: {
+  task: Task;
+  draggable?: boolean;
+  canEdit: boolean;
+  isAdmin?: boolean;
+  onUpdated?: (task: Task) => void;
+  onDeleted?: (taskId: string) => void;
+}) {
   const urgency = getTaskUrgency(task.due_date, task.status);
   const style = URGENCY_STYLES[urgency];
   return (
-    <TaskDetailDialog task={task} canEdit={canEdit}>
+    <TaskDetailDialog
+      task={task}
+      canEdit={canEdit}
+      isAdmin={isAdmin}
+      onUpdated={onUpdated}
+      onDeleted={onDeleted}
+    >
       <motion.div layout={draggable} whileHover={{ y: -2 }} className={`cursor-pointer rounded-xl border bg-card p-3 shadow-soft ${style.border} ${!canEdit ? "opacity-80" : ""}`}>
         <div className="mb-2 flex items-center justify-between">
           <Badge variant={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
@@ -198,7 +254,16 @@ function TaskCard({ task, draggable = true, canEdit }: { task: Task; draggable?:
   );
 }
 
-function TaskTable({ tasks, onStatusChange, canEdit }: { tasks: Task[]; onStatusChange: (id: string, s: TaskStatus) => void; canEdit: (t: Task) => boolean }) {
+function TaskTable({
+  tasks, onStatusChange, canEdit, isAdmin, onUpdated, onDeleted,
+}: {
+  tasks: Task[];
+  onStatusChange: (id: string, s: TaskStatus) => void;
+  canEdit: (t: Task) => boolean;
+  isAdmin: boolean;
+  onUpdated: (task: Task) => void;
+  onDeleted: (taskId: string) => void;
+}) {
   return (
     <Card className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -220,7 +285,7 @@ function TaskTable({ tasks, onStatusChange, canEdit }: { tasks: Task[]; onStatus
             return (
               <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/50">
                 <td className="px-4 py-3">
-                  <TaskDetailDialog task={t} canEdit={editable}>
+                  <TaskDetailDialog task={t} canEdit={editable} isAdmin={isAdmin} onUpdated={onUpdated} onDeleted={onDeleted}>
                     <span className="cursor-pointer font-medium hover:underline">{t.name}</span>
                   </TaskDetailDialog>
                 </td>
@@ -257,21 +322,63 @@ function TaskTable({ tasks, onStatusChange, canEdit }: { tasks: Task[]; onStatus
 }
 
 function TaskDetailDialog({
-  task, canEdit, children, controlledOpen, onOpenChange,
+  task, canEdit, isAdmin = false, onUpdated, onDeleted, children, controlledOpen, onOpenChange,
 }: {
-  task: Task; canEdit: boolean; children: React.ReactNode;
-  controlledOpen?: boolean; onOpenChange?: (open: boolean) => void;
+  task: Task;
+  canEdit: boolean;
+  isAdmin?: boolean;
+  onUpdated?: (task: Task) => void;
+  onDeleted?: (taskId: string) => void;
+  children: React.ReactNode;
+  controlledOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const supabase = createClient();
   const [internalOpen, setInternalOpen] = useState(false);
-  const open = controlledOpen !== undefined ? true : internalOpen;
+  const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
+  const [name, setName] = useState(task.name);
   const [desc, setDesc] = useState(task.description ?? "");
   const [pct, setPct] = useState(task.completion_pct);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function save() {
-    if (!canEdit) return setOpen(false);
-    await supabase.from("tasks").update({ description: desc, completion_pct: pct }).eq("id", task.id);
+    if (!canEdit || saving) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    setSaving(true);
+    const { error } = await supabase
+      .from("tasks")
+      .update({ name: trimmedName, description: desc, completion_pct: pct })
+      .eq("id", task.id);
+    setSaving(false);
+
+    if (error) {
+      alert("Couldn't save the task. Please try again.");
+      return;
+    }
+
+    onUpdated?.({ ...task, name: trimmedName, description: desc, completion_pct: pct });
+    setOpen(false);
+  }
+
+  async function deleteTask() {
+    if (!isAdmin || deleting) return;
+    const confirmed = window.confirm(`Are you sure you want to delete "${task.name}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeleting(true);
+    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    setDeleting(false);
+
+    if (error) {
+      alert("Couldn't delete the task. Please try again.");
+      return;
+    }
+
+    onDeleted?.(task.id);
     setOpen(false);
   }
 
@@ -287,6 +394,16 @@ function TaskDetailDialog({
             <Badge variant={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
             {task.category && <Badge variant="outline">{task.category}</Badge>}
             {task.due_date && <Badge variant="outline">Due {formatDate(task.due_date)}</Badge>}
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Task name</p>
+            <input
+              disabled={!canEdit}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input disabled:opacity-60"
+              placeholder="Task name"
+            />
           </div>
           <div>
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">Description</p>
@@ -323,7 +440,13 @@ function TaskDetailDialog({
               </div>
             </div>
           )}
-          {canEdit && <Button className="w-full" onClick={save}>Save changes</Button>}
+          {canEdit && <Button className="w-full" onClick={save} disabled={saving || !name.trim()}>{saving ? "Saving..." : "Save changes"}</Button>}
+          {isAdmin && (
+            <Button variant="destructive" className="w-full" onClick={deleteTask} disabled={deleting}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              {deleting ? "Deleting..." : "Delete task"}
+            </Button>
+          )}
           {!canEdit && <p className="text-center text-xs text-muted-foreground">Only the assignee or admin can edit this task.</p>}
           <div className="border-t border-border pt-4">
             {open && <TaskComments taskId={task.id} />}
