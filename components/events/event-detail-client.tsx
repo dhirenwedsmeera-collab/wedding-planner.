@@ -45,12 +45,22 @@ export function EventDetailClient({
   const decorSorted = decorItems.filter((s) => s.is_purchased).length;
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
+    <div
+      className="space-y-6 p-4 lg:p-6"
+      style={{
+        ["--event-primary" as string]: event.color_primary ?? "#047857",
+        ["--event-secondary" as string]: event.color_secondary ?? "#f7f3e8",
+        ["--event-accent" as string]: event.color_accent ?? "#d4a72c",
+      } as React.CSSProperties}
+    >
       <Link href="/events" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> All events
       </Link>
 
-      <div className={`relative rounded-2xl p-6 text-white lg:p-8 ${EVENT_GRADIENTS[event.color_theme] ?? EVENT_GRADIENTS.emerald}`}>
+      <div
+        className="relative rounded-2xl p-6 text-white lg:p-8"
+        style={{ background: `linear-gradient(125deg, ${event.color_primary ?? "#047857"}, ${event.color_accent ?? "#d4a72c"})` }}
+      >
         {isAdmin && (
           <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
             <EditEventDialog event={event} onSaved={(patch) => setEvent((prev) => ({ ...prev, ...patch }))} />
@@ -70,7 +80,8 @@ export function EventDetailClient({
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === t ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === t ? "text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+            style={tab === t ? { backgroundColor: event.color_primary ?? "#047857", borderColor: event.color_primary ?? "#047857" } : undefined}
           >
             {t}
           </button>
@@ -79,7 +90,8 @@ export function EventDetailClient({
           <button
             key={s.id}
             onClick={() => setTab(s.id)}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === s.id ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium ${tab === s.id ? "text-white" : "border-border text-muted-foreground hover:bg-muted"}`}
+            style={tab === s.id ? { backgroundColor: event.color_primary ?? "#047857", borderColor: event.color_primary ?? "#047857" } : undefined}
           >
             {s.name}
           </button>
