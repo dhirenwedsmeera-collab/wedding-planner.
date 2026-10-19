@@ -35,6 +35,10 @@ export interface WeddingEvent {
   event_time: string | null;
   venue: string | null;
   color_theme: string;
+  /** Optional per-event custom colours, stored as hex values. */
+  color_primary?: string | null;
+  color_secondary?: string | null;
+  color_accent?: string | null;
   icon: string | null;
   is_archived: boolean;
   sort_order: number;
