@@ -124,6 +124,8 @@ export interface Booking {
   vendor_name: string;
   category: BookingCategory;
   event_id: string | null;
+  /** Additional linked wedding functions; populated from booking_events. */
+  event_ids?: string[];
   status: BookingStatus;
   booking_date: string | null;
   contract_signed: boolean;
