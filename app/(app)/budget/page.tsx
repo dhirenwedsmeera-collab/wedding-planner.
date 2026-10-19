@@ -11,18 +11,19 @@ export default async function BudgetPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: lines }, { data: expenses }, { data: events }, { data: me }] = await Promise.all([
+  const [{ data: lines }, { data: expenses }, { data: events }, { data: me }, { data: overallBudgets }] = await Promise.all([
     supabase.from("budget_lines").select("*"),
     supabase.from("expenses").select("*").order("expense_date", { ascending: false }),
     supabase.from("events").select("*").eq("is_archived", false).order("sort_order"),
     user ? supabase.from("profiles").select("*").eq("id", user.id).single() : Promise.resolve({ data: null }),
+    supabase.from("overall_budget_lines").select("*"),
   ]);
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
-      <RealtimeRefresher tables={["budget_lines", "expenses"]} />
+      <RealtimeRefresher tables={["budget_lines", "expenses", "overall_budget_lines"]} />
       <div>
-        <h1 className="font-display text-2xl font-semibold">Budget</h1>
+        <h1 className="font-display text-2xl font-semibold">Expenses</h1>
         <p className="text-sm text-muted-foreground">Planned vs. actual spending, by event and category.</p>
       </div>
       <BudgetClient
@@ -30,6 +31,7 @@ export default async function BudgetPage() {
         initialExpenses={(expenses ?? []) as Expense[]}
         events={(events ?? []) as WeddingEvent[]}
         isAdmin={(me as Profile | null)?.role === "admin"}
+        initialOverallBudgets={(overallBudgets ?? []) as any}
       />
     </div>
   );
