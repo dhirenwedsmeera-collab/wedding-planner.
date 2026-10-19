@@ -56,9 +56,36 @@ export function BookingsClient({
   }, [bookings, filter]);
 
   async function updateBooking(id: string, patch: Partial<Booking>) {
-    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-    const wasConfirmed = bookings.find((b) => b.id === id)?.status === "confirmed";
-    await supabase.from("bookings").update(patch).eq("id", id);
+    const { event_ids, ...bookingPatch } = patch as Partial<Booking> & { event_ids?: string[] };
+    const current = bookings.find((b) => b.id === id);
+    const wasConfirmed = current?.status === "confirmed";
+    const optimisticPatch = { ...bookingPatch, ...(event_ids ? { event_ids } : {}) } as Partial<Booking>;
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...optimisticPatch } : b)));
+
+    const { error: bookingError } = await supabase.from("bookings").update(bookingPatch).eq("id", id);
+    if (bookingError) {
+      alert(`Couldn't save booking: ${bookingError.message}`);
+      setBookings((prev) => prev.map((b) => b.id === id && current ? current : b));
+      return;
+    }
+
+    if (event_ids) {
+      const { error: deleteLinksError } = await supabase.from("booking_events").delete().eq("booking_id", id);
+      if (deleteLinksError) {
+        alert(`Booking details saved, but event assignments couldn't be updated: ${deleteLinksError.message}. Please run the booking-events migration in Supabase.`);
+        return;
+      }
+      if (event_ids.length > 0) {
+        const { error: insertLinksError } = await supabase.from("booking_events").insert(
+          event_ids.map((event_id) => ({ booking_id: id, event_id }))
+        );
+        if (insertLinksError) {
+          alert(`Booking details saved, but event assignments couldn't be saved: ${insertLinksError.message}. Please check the booking_events table and its permissions.`);
+          return;
+        }
+      }
+    }
+
     if (patch.status === "confirmed" && !wasConfirmed) fireConfetti();
   }
 
@@ -209,7 +236,7 @@ function EditBookingDialog({
 }: { booking: Booking; events: WeddingEvent[]; onSaved: (patch: Partial<Booking>) => void }) {
   const [form, setForm] = useState({
     vendor_name: booking.vendor_name,
-    event_id: booking.event_id ?? "",
+    event_ids: booking.event_ids ?? (booking.event_id ? [booking.event_id] : []),
     contact_person: booking.contact_person ?? "",
     contact_phone: booking.contact_phone ?? "",
     booking_date: booking.booking_date ?? "",
@@ -224,9 +251,11 @@ function EditBookingDialog({
   const [open, setOpen] = useState(false);
 
   function save() {
+    const selectedEventIds = form.event_ids;
     onSaved({
       ...form,
-      event_id: form.event_id || null,
+      event_id: selectedEventIds[0] || null,
+      event_ids: selectedEventIds,
       trial_scheduled_at: form.trial_scheduled_at ? new Date(form.trial_scheduled_at).toISOString() : null,
       advance_paid: Number(form.advance_paid),
       balance_due: Number(form.balance_due),
@@ -245,11 +274,25 @@ function EditBookingDialog({
         </DialogHeader>
         <div className="space-y-3">
           <Field label="Vendor name"><input className="input" value={form.vendor_name} onChange={(e) => setForm({ ...form, vendor_name: e.target.value })} /></Field>
-          <Field label="Wedding function">
-            <select className="input" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })}>
-              <option value="">— none —</option>
-              {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-            </select>
+          <Field label="Wedding functions (select all that apply)">
+            <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
+              {events.map((ev) => (
+                <label key={ev.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.event_ids.includes(ev.id)}
+                    onChange={(e) => setForm((prev) => ({
+                      ...prev,
+                      event_ids: e.target.checked
+                        ? [...prev.event_ids, ev.id]
+                        : prev.event_ids.filter((id) => id !== ev.id),
+                    }))}
+                  />
+                  {ev.name}
+                </label>
+              ))}
+              {events.length === 0 && <p className="text-xs text-muted-foreground">No events available.</p>}
+            </div>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Contact person"><input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} /></Field>
