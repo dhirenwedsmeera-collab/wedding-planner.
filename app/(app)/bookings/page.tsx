@@ -11,11 +11,21 @@ export default async function BookingsPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: bookings }, { data: events }, { data: profile }] = await Promise.all([
+  const [{ data: bookings }, { data: events }, { data: profile }, { data: bookingEventLinks }] = await Promise.all([
     supabase.from("bookings").select("*").order("category"),
     supabase.from("events").select("*").eq("is_archived", false).order("sort_order"),
     user ? supabase.from("profiles").select("*").eq("id", user.id).single() : Promise.resolve({ data: null }),
+    supabase.from("booking_events").select("booking_id,event_id"),
   ]);
+
+  const bookingEventIds = new Map<string, string[]>();
+  for (const link of bookingEventLinks ?? []) {
+    bookingEventIds.set(link.booking_id, [...(bookingEventIds.get(link.booking_id) ?? []), link.event_id]);
+  }
+  const bookingsWithEvents = (bookings ?? []).map((booking) => ({
+    ...booking,
+    event_ids: bookingEventIds.get(booking.id) ?? (booking.event_id ? [booking.event_id] : []),
+  }));
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
@@ -27,7 +37,7 @@ export default async function BookingsPage() {
         </p>
       </div>
       <BookingsClient
-        initialBookings={(bookings ?? []) as Booking[]}
+        initialBookings={bookingsWithEvents as Booking[]}
         events={(events ?? []) as WeddingEvent[]}
         isAdmin={(profile as Profile | null)?.role === "admin"}
       />
