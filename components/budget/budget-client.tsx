@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { Plus, Save } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,10 +10,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { BudgetLine, Expense, WeddingEvent } from "@/types/domain";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { FileUpload } from "@/components/ui/file-upload";
+import { PrivateFileLink } from "@/components/ui/private-file-link";
 
 type OverallBudget = { id: string; category: string; planned_amount: number; notes: string | null };
 
-const OVERALL_CATEGORIES = ["Venues", "Accommodation", "Decor", "Outfits", "Catering", "DJ / Entertainment"] as const;
+const DEFAULT_OVERALL_CATEGORIES = ["Venues", "Accommodation", "Decor", "Outfits", "Catering", "DJ / Entertainment"] as const;
 
 const COLORS = ["#0f7a56", "#1fa373", "#d18f1e", "#eec455", "#4a7c3f", "#e8ab30", "#0a4a37", "#c9a44d"];
 
@@ -25,6 +26,13 @@ export function BudgetClient({
   const [overallBudgets, setOverallBudgets] = useState(initialOverallBudgets);
   const [budgetSaving, setBudgetSaving] = useState(false);
   const [budgetMessage, setBudgetMessage] = useState("");
+  const [newOverallCategory, setNewOverallCategory] = useState("");
+  const overallCategories = Array.from(new Set([...DEFAULT_OVERALL_CATEGORIES, ...overallBudgets.map((b) => b.category)])).sort((a, b) => {
+    const ai = DEFAULT_OVERALL_CATEGORIES.indexOf(a as (typeof DEFAULT_OVERALL_CATEGORIES)[number]);
+    const bi = DEFAULT_OVERALL_CATEGORIES.indexOf(b as (typeof DEFAULT_OVERALL_CATEGORIES)[number]);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1; if (bi >= 0) return 1; return a.localeCompare(b);
+  });
 
   const totalPlanned = overallBudgets.length ? overallBudgets.reduce((s, l) => s + Number(l.planned_amount || 0), 0) : lines.reduce((s, l) => s + Number(l.planned_amount || 0), 0);
   const totalSpent = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
@@ -49,10 +57,18 @@ export function BudgetClient({
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
   }, [expenses, lines]);
 
+  async function deleteExpense(expense: Expense) {
+    if (!window.confirm(`Delete the expense "${expense.description}"? This cannot be undone.`)) return;
+    const previous = expenses;
+    setExpenses((current) => current.filter((item) => item.id !== expense.id));
+    const { error } = await createClient().from("expenses").delete().eq("id", expense.id);
+    if (error) { setExpenses(previous); window.alert(`Couldn't delete expense: ${error.message}`); }
+  }
+
   async function saveOverallBudgets() {
     setBudgetSaving(true); setBudgetMessage("");
     const supabase = createClient();
-    const rows = OVERALL_CATEGORIES.map((category) => ({ category, planned_amount: Number(overallBudgets.find((b) => b.category === category)?.planned_amount ?? 0) }));
+    const rows = overallCategories.map((category) => ({ category, planned_amount: Number(overallBudgets.find((b) => b.category === category)?.planned_amount ?? 0) }));
     const { error } = await supabase.from("overall_budget_lines").upsert(rows, { onConflict: "category" });
     setBudgetSaving(false);
     setBudgetMessage(error ? `Could not save: ${error.message}` : "Overall budget saved.");
@@ -67,7 +83,7 @@ export function BudgetClient({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {OVERALL_CATEGORIES.map((category) => {
+            {overallCategories.map((category) => {
               const item = overallBudgets.find((b) => b.category === category);
               return <label key={category} className="space-y-1 text-sm font-medium">
                 <span>{category}</span>
@@ -76,6 +92,10 @@ export function BudgetClient({
               </label>;
             })}
           </div>
+          {isAdmin && <div className="mt-4 flex flex-wrap items-center gap-2">
+            <input className="input max-w-xs" aria-label="New overall budget category" placeholder="New category (e.g. Wedding Planner)" value={newOverallCategory} onChange={(e) => setNewOverallCategory(e.target.value)} />
+            <Button variant="outline" onClick={() => { const category = newOverallCategory.trim(); if (!category) return; if (overallCategories.some((c) => c.toLowerCase() === category.toLowerCase())) { setBudgetMessage("That category already exists."); return; } setOverallBudgets((prev) => [...prev, { id: "", category, planned_amount: 0, notes: null }]); setNewOverallCategory(""); setBudgetMessage("Category added. Save the overall budget to keep it."); }}><Plus className="mr-2 h-4 w-4" />Add category</Button>
+          </div>}
           {isAdmin && <div className="mt-4 flex items-center gap-3"><Button disabled={budgetSaving} onClick={saveOverallBudgets}><Save className="mr-2 h-4 w-4" />{budgetSaving ? "Saving…" : "Save overall budget"}</Button>{budgetMessage && <p className="text-sm text-muted-foreground">{budgetMessage}</p>}</div>}
         </CardContent>
       </Card>
@@ -133,9 +153,9 @@ export function BudgetClient({
               <div>
                 <p className="text-sm font-medium">{e.description}</p>
                 <p className="text-[11px] text-muted-foreground">{formatDate(e.expense_date)}{e.paid_to ? ` · ${e.paid_to}` : ""}{e.event_id ? ` · ${events.find((ev) => ev.id === e.event_id)?.name ?? "Wedding event"}` : " · No event assigned"}</p>
-                {e.receipt_url && <a href={e.receipt_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-emerald-700 underline">View receipt</a>}
+                {e.receipt_url && <div className="mt-1"><PrivateFileLink value={e.receipt_url} label="View receipt" /></div>}
               </div>
-              <p className="font-semibold">{formatCurrency(e.amount)}</p>
+              <div className="flex items-center gap-3"><p className="font-semibold">{formatCurrency(e.amount)}</p>{isAdmin && <Button variant="outline" size="sm" aria-label={`Delete expense ${e.description}`} onClick={() => deleteExpense(e)} className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" /></Button>}</div>
             </div>
           ))}
         </CardContent>
