@@ -18,9 +18,9 @@ const OVERALL_CATEGORIES = ["Venues", "Accommodation", "Decor", "Outfits", "Cate
 const COLORS = ["#0f7a56", "#1fa373", "#d18f1e", "#eec455", "#4a7c3f", "#e8ab30", "#0a4a37", "#c9a44d"];
 
 export function BudgetClient({
-  initialLines, initialExpenses, events, isAdmin, initialOverallBudgets,
-}: { initialLines: BudgetLine[]; initialExpenses: Expense[]; events: WeddingEvent[]; isAdmin: boolean; initialOverallBudgets: OverallBudget[] }) {
-  const [lines] = useState(initialLines);
+  initialLines, initialExpenses, events, isAdmin, initialOverallBudgets, eventCategories,
+}: { initialLines: BudgetLine[]; initialExpenses: Expense[]; events: WeddingEvent[]; isAdmin: boolean; initialOverallBudgets: OverallBudget[]; eventCategories: Record<string, string[]> }) {
+  const [lines, setLines] = useState(initialLines);
   const [expenses, setExpenses] = useState(initialExpenses);
   const [overallBudgets, setOverallBudgets] = useState(initialOverallBudgets);
   const [budgetSaving, setBudgetSaving] = useState(false);
@@ -124,7 +124,7 @@ export function BudgetClient({
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>Expenses</CardTitle>
-          {isAdmin && <AddExpenseDialog lines={lines} events={events} onCreated={(e) => setExpenses((prev) => [e, ...prev])} />}
+          {isAdmin && <AddExpenseDialog lines={lines} setLines={setLines} events={events} eventCategories={eventCategories} onCreated={(e) => setExpenses((prev) => [e, ...prev])} />}
         </CardHeader>
         <CardContent className="space-y-2">
           {expenses.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No expenses recorded.</p>}
@@ -144,28 +144,36 @@ export function BudgetClient({
   );
 }
 
-function AddExpenseDialog({ lines, events, onCreated }: { lines: BudgetLine[]; events: WeddingEvent[]; onCreated: (e: Expense) => void }) {
+function AddExpenseDialog({ lines, setLines, events, eventCategories, onCreated }: { lines: BudgetLine[]; setLines: (update: (prev: BudgetLine[]) => BudgetLine[]) => void; events: WeddingEvent[]; eventCategories: Record<string, string[]>; onCreated: (e: Expense) => void }) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [budgetLineId, setBudgetLineId] = useState(lines[0]?.id ?? "");
-  const uniqueCategories = Array.from(new Set(lines.map((line) => line.category.trim()).filter(Boolean)));
-  const selectedCategory = lines.find((line) => line.id === budgetLineId)?.category ?? uniqueCategories[0] ?? "";
+  const [category, setCategory] = useState("");
+  const [eventId, setEventId] = useState("");
+  const uniqueCategories = Array.from(new Set([...(eventId ? (eventCategories[eventId] ?? []) : []), ...lines.filter((line) => !eventId || line.event_id === eventId).map((line) => line.category.trim())].filter(Boolean))).sort();
+  const selectedCategory = category && uniqueCategories.includes(category) ? category : uniqueCategories[0] ?? "";
   const [paidTo, setPaidTo] = useState("");
   const [eventId, setEventId] = useState("");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   async function create() {
-    const line = lines.find((l) => l.id === budgetLineId);
+    let line = lines.find((l) => l.id === budgetLineId && l.category === selectedCategory && (!eventId || l.event_id === eventId));
+    if (!line && selectedCategory) {
+      const { data: createdLine, error: lineError } = await supabase.from("budget_lines").insert({ category: selectedCategory, event_id: eventId || null, planned_amount: 0 }).select("*").single();
+      if (lineError) return;
+      line = createdLine as BudgetLine;
+      setLines((prev) => [...prev, line!]);
+    }
     const { data, error } = await supabase
       .from("expenses")
-      .insert({ description, amount: Number(amount), budget_line_id: budgetLineId || null, event_id: eventId || line?.event_id || null, paid_to: paidTo || null, receipt_url: receiptUrl })
+      .insert({ description, amount: Number(amount), budget_line_id: line?.id ?? null, event_id: eventId || line?.event_id || null, paid_to: paidTo || null, receipt_url: receiptUrl })
       .select()
       .single();
     if (!error && data) onCreated(data as Expense);
     setOpen(false);
-    setDescription(""); setAmount(""); setPaidTo(""); setEventId(""); setReceiptUrl(null);
+    setDescription(""); setAmount(""); setPaidTo(""); setEventId(""); setCategory(""); setReceiptUrl(null);
   }
 
   return (
@@ -179,12 +187,12 @@ function AddExpenseDialog({ lines, events, onCreated }: { lines: BudgetLine[]; e
           <select
             className="input"
             value={selectedCategory}
-            onChange={(e) => setBudgetLineId(lines.find((line) => line.category.trim() === e.target.value)?.id ?? "")}
+            onChange={(e) => { setCategory(e.target.value); setBudgetLineId(lines.find((line) => line.category.trim() === e.target.value && (!eventId || line.event_id === eventId))?.id ?? ""); }}
           >
-            {uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+            {uniqueCategories.map((categoryOption) => <option key={categoryOption} value={categoryOption}>{categoryOption}</option>)}
           </select>
           <label className="block space-y-1 text-sm">Wedding event (optional)
-            <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">Use budget line / no event</option>{events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}</select>
+            <select className="input" value={eventId} onChange={(e) => { setEventId(e.target.value); setCategory(""); setBudgetLineId(""); }}><option value="">Choose event…</option>{events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}</select>
           </label>
           <input className="input" placeholder="Paid to (vendor/store)" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} />
           <div className="space-y-1"><p className="text-sm font-medium">Receipt (optional)</p><FileUpload bucket="receipts" pathPrefix="expenses" value={receiptUrl} onChange={setReceiptUrl} label="Upload receipt image or PDF" accept="image/*,application/pdf" /></div>
