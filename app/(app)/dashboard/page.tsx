@@ -29,6 +29,7 @@ export default async function DashboardPage() {
     { data: shoppingItems },
     { data: budgetLines },
     { data: expenses },
+    { data: overallBudgetLines },
     { data: activity },
     { data: weddingSettings },
     { data: keyDecisions },
@@ -40,6 +41,7 @@ export default async function DashboardPage() {
     supabase.from("shopping_items").select("*"),
     supabase.from("budget_lines").select("*"),
     supabase.from("expenses").select("*"),
+    supabase.from("overall_budget_lines").select("*"),
     supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(8),
     supabase.from("wedding_settings").select("*").eq("id", true).single(),
     supabase.from("key_decisions").select("*").order("sort_order"),
@@ -92,14 +94,17 @@ export default async function DashboardPage() {
   });
 
   const purchasedCount = allShopping.filter((s) => s.is_purchased).length;
-  const totalPlanned = allBudget.reduce((sum, b) => sum + Number(b.planned_amount || 0), 0);
+  const overallBudget = (overallBudgetLines ?? []) as { planned_amount: number | string }[];
+  const totalPlanned = overallBudget.length > 0
+    ? overallBudget.reduce((sum, b) => sum + Number(b.planned_amount || 0), 0)
+    : allBudget.reduce((sum, b) => sum + Number(b.planned_amount || 0), 0);
   const totalSpent = allExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
-      <RealtimeRefresher tables={["tasks", "bookings", "shopping_items", "expenses", "budget_lines", "activity_log", "wedding_settings", "key_decisions", "guest_events"]} />
+      <RealtimeRefresher tables={["tasks", "bookings", "shopping_items", "expenses", "budget_lines", "overall_budget_lines", "activity_log", "wedding_settings", "key_decisions", "guest_events"]} />
 
       <DashboardHero firstName={firstName} overallPct={overallPct} weddingDate={settings?.wedding_date ?? null} isAdmin={isAdmin} />
 
