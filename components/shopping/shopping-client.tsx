@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Check, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -221,6 +221,14 @@ function AddItemDialog({ events, profiles, categories, eventCategories, items, o
     return Array.from(new Set([...(eventCategories[eventId] ?? []), ...usedForEvent].filter(Boolean))).sort();
   }, [categories, eventCategories, eventId, items]);
 
+  // Keep the selected category in sync with the currently selected event.
+  // This also handles changes to an event's sections while the dialog is open.
+  useEffect(() => {
+    setCategory((current) => eventSpecificCategories.includes(current)
+      ? current
+      : (eventSpecificCategories[0] ?? "Other"));
+  }, [eventSpecificCategories]);
+
   async function create() {
     if (!name.trim()) return;
     const finalCategory = customCategory.trim() || category || "Other";
@@ -246,20 +254,16 @@ function AddItemDialog({ events, profiles, categories, eventCategories, items, o
         <div className="space-y-3">
           <input className="input" placeholder="Item name" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
-            <select className="input" value={category} onChange={(e) => { setCategory(e.target.value); setCustomCategory(""); }}>
-              {eventSpecificCategories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select className="input" value={eventId} onChange={(e) => {
-              const nextEventId = e.target.value;
-              setEventId(nextEventId);
+            <select aria-label="Event" className="input" value={eventId} onChange={(e) => {
+              setEventId(e.target.value);
               setCustomCategory("");
-              const nextCategories = nextEventId
-                ? Array.from(new Set([...(eventCategories[nextEventId] ?? []), ...items.filter((item) => item.event_id === nextEventId).map((item) => item.category)].filter(Boolean))).sort()
-                : categories;
-              setCategory(nextCategories[0] ?? "Other");
             }}>
               <option value="">No event</option>
               {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <select aria-label="Category" className="input" value={eventSpecificCategories.includes(category) ? category : (eventSpecificCategories[0] ?? "Other")} onChange={(e) => { setCategory(e.target.value); setCustomCategory(""); }}>
+              {eventSpecificCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+              {eventSpecificCategories.length === 0 && <option value="Other">Other</option>}
             </select>
           </div>
           <input className="input" placeholder="Or add a new category / subheading" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} />
