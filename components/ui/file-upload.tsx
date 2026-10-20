@@ -5,13 +5,14 @@ import { Upload, FileText, X, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export function FileUpload({
-  bucket, pathPrefix, value, onChange, label = "Upload file",
+  bucket, pathPrefix, value, onChange, label = "Upload file", accept,
 }: {
   bucket: "receipts" | "contracts" | "event-files" | "avatars";
   pathPrefix: string;
   value: string | null | undefined;
   onChange: (url: string | null) => void;
   label?: string;
+  accept?: string;
 }) {
   const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -21,6 +22,12 @@ export function FileUpload({
   async function handleFile(file: File) {
     setUploading(true);
     setError(null);
+    if (accept === "image/*,application/pdf" && !file.type.startsWith("image/") && file.type !== "application/pdf") {
+      setError("Please choose an image or PDF file.");
+      setUploading(false);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) { setError("Please choose a file smaller than 10 MB."); setUploading(false); return; }
     const ext = file.name.split(".").pop();
     const path = `${pathPrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
@@ -61,6 +68,7 @@ export function FileUpload({
       <input
         ref={inputRef}
         type="file"
+        accept={accept}
         className="hidden"
         onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
       />
