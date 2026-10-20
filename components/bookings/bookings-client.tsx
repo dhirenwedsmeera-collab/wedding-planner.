@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ClipboardCheck, AlertOctagon, CheckCircle2, Clock, Phone, FileText, Plus,
+  ClipboardCheck, AlertOctagon, CheckCircle2, Clock, Phone, FileText, Plus, Trash2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,12 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
 };
 
 const FILTERS = ["all", "not_booked", "enquired", "negotiating", "booked", "confirmed", "overdue"] as const;
+type BookingPriority = "low" | "medium" | "high";
+const PRIORITY_STYLES: Record<BookingPriority, { label: string; className: string }> = {
+  low: { label: "Low", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" },
+  medium: { label: "Medium", className: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" },
+  high: { label: "High", className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400" },
+};
 
 export function BookingsClient({
   initialBookings,
@@ -87,6 +93,28 @@ export function BookingsClient({
     }
 
     if (patch.status === "confirmed" && !wasConfirmed) fireConfetti();
+  }
+
+  async function deleteBooking(booking: Booking) {
+    const confirmed = window.confirm(`Delete the booking for "${booking.vendor_name || "this vendor"}"? This cannot be undone.`);
+    if (!confirmed) return;
+    const previous = bookings;
+    setBookings((current) => current.filter((item) => item.id !== booking.id));
+    const linkedEventIds = booking.event_ids ?? (booking.event_id ? [booking.event_id] : []);
+    const { error: linksError } = await supabase.from("booking_events").delete().eq("booking_id", booking.id);
+    if (linksError) {
+      setBookings(previous);
+      alert(`Couldn't remove this booking's event links: ${linksError.message}`);
+      return;
+    }
+    const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
+    if (error) {
+      setBookings(previous);
+      if (linkedEventIds.length) {
+        await supabase.from("booking_events").insert(linkedEventIds.map((event_id) => ({ booking_id: booking.id, event_id })));
+      }
+      alert(`Couldn't delete this booking: ${error.message}`);
+    }
   }
 
   return (
@@ -175,11 +203,10 @@ export function BookingsClient({
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium">{b.vendor_name || "TBD"}</p>
                           <Badge variant="outline">{BOOKING_CATEGORY_LABELS[b.category]}</Badge>
-                          {isUnbooked && (
-                            <Badge variant={urgency === "overdue" || urgency === "critical" ? "red" : urgency === "urgent" ? "orange" : urgency === "upcoming" ? "yellow" : "green"}>
-                              <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} /> {style.label}
-                            </Badge>
-                          )}
+                          {(() => {
+                            const priority = ((b as Booking & { priority?: BookingPriority }).priority ?? "medium") as BookingPriority;
+                            return <Badge className={PRIORITY_STYLES[priority].className}>{PRIORITY_STYLES[priority].label} priority</Badge>;
+                          })()}
                           {b.contract_signed && <Badge variant="gold"><FileText className="h-3 w-3" /> Contract signed</Badge>}
                         </div>
                         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -201,6 +228,18 @@ export function BookingsClient({
                             <Phone className="h-4 w-4" />
                           </a>
                         )}
+                        {isAdmin && (
+                          <select
+                            aria-label={`Priority for ${b.vendor_name}`}
+                            value={((b as Booking & { priority?: BookingPriority }).priority ?? "medium")}
+                            onChange={(e) => updateBooking(b.id, { priority: e.target.value } as Partial<Booking>)}
+                            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="low">Low priority</option>
+                            <option value="medium">Medium priority</option>
+                            <option value="high">High priority</option>
+                          </select>
+                        )}
                         {isAdmin ? (
                           <select
                             value={b.status}
@@ -215,6 +254,11 @@ export function BookingsClient({
                           <Badge>{STATUS_LABELS[b.status]}</Badge>
                         )}
                         {isAdmin && <EditBookingDialog booking={b} events={events} onSaved={(patch) => updateBooking(b.id, patch)} />}
+                        {isAdmin && (
+                          <Button size="sm" variant="outline" aria-label={`Delete booking for ${b.vendor_name}`} onClick={() => deleteBooking(b)} className="text-red-600 hover:bg-red-50 hover:text-red-700">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
