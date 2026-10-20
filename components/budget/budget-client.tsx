@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createClient } from "@/lib/supabase/client";
 import type { BudgetLine, Expense, WeddingEvent } from "@/types/domain";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { FileUpload } from "@/components/ui/file-upload";
 
 type OverallBudget = { id: string; category: string; planned_amount: number; notes: string | null };
 
@@ -132,6 +133,7 @@ export function BudgetClient({
               <div>
                 <p className="text-sm font-medium">{e.description}</p>
                 <p className="text-[11px] text-muted-foreground">{formatDate(e.expense_date)}{e.paid_to ? ` · ${e.paid_to}` : ""}{e.event_id ? ` · ${events.find((ev) => ev.id === e.event_id)?.name ?? "Wedding event"}` : " · No event assigned"}</p>
+                {e.receipt_url && <a href={e.receipt_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-emerald-700 underline">View receipt</a>}
               </div>
               <p className="font-semibold">{formatCurrency(e.amount)}</p>
             </div>
@@ -150,17 +152,18 @@ function AddExpenseDialog({ lines, events, onCreated }: { lines: BudgetLine[]; e
   const [budgetLineId, setBudgetLineId] = useState(lines[0]?.id ?? "");
   const [paidTo, setPaidTo] = useState("");
   const [eventId, setEventId] = useState("");
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   async function create() {
     const line = lines.find((l) => l.id === budgetLineId);
     const { data, error } = await supabase
       .from("expenses")
-      .insert({ description, amount: Number(amount), budget_line_id: budgetLineId || null, event_id: eventId || line?.event_id || null, paid_to: paidTo || null })
+      .insert({ description, amount: Number(amount), budget_line_id: budgetLineId || null, event_id: eventId || line?.event_id || null, paid_to: paidTo || null, receipt_url: receiptUrl })
       .select()
       .single();
     if (!error && data) onCreated(data as Expense);
     setOpen(false);
-    setDescription(""); setAmount(""); setPaidTo(""); setEventId("");
+    setDescription(""); setAmount(""); setPaidTo(""); setEventId(""); setReceiptUrl(null);
   }
 
   return (
@@ -181,6 +184,7 @@ function AddExpenseDialog({ lines, events, onCreated }: { lines: BudgetLine[]; e
             <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">Use budget line / no event</option>{events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}</select>
           </label>
           <input className="input" placeholder="Paid to (vendor/store)" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} />
+          <div className="space-y-1"><p className="text-sm font-medium">Receipt (optional)</p><FileUpload bucket="receipts" pathPrefix="expenses" value={receiptUrl} onChange={setReceiptUrl} label="Upload receipt image or PDF" accept="image/*,application/pdf" /></div>
           <Button className="w-full" onClick={create}>Save expense</Button>
         </div>
       </DialogContent>
