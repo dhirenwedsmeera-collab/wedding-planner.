@@ -44,6 +44,7 @@ export function BookingsClient({
 }) {
   const [bookings, setBookings] = useState(initialBookings);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | BookingPriority>("all");
   const supabase = createClient();
 
   const stats = useMemo(() => {
@@ -56,10 +57,11 @@ export function BookingsClient({
   }, [bookings]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return bookings;
-    if (filter === "overdue") return bookings.filter((b) => getBookingUrgency(b.category, b.status) === "overdue");
-    return bookings.filter((b) => b.status === filter);
-  }, [bookings, filter]);
+    const byStatus = filter === "all" ? bookings : filter === "overdue"
+      ? bookings.filter((b) => getBookingUrgency(b.category, b.status) === "overdue")
+      : bookings.filter((b) => b.status === filter);
+    return priorityFilter === "all" ? byStatus : byStatus.filter((b) => (((b as Booking & { priority?: BookingPriority }).priority ?? "medium") === priorityFilter));
+  }, [bookings, filter, priorityFilter]);
 
   async function updateBooking(id: string, patch: Partial<Booking>) {
     const { event_ids, ...bookingPatch } = patch as Partial<Booking> & { event_ids?: string[] };
@@ -178,6 +180,9 @@ export function BookingsClient({
             {f.replace("_", " ")}
           </button>
         ))}
+        <select aria-label="Filter bookings by priority" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | BookingPriority)} className="shrink-0 rounded-full border border-border bg-background px-3.5 py-1.5 text-xs font-medium">
+          <option value="all">All priorities</option><option value="high">High priority</option><option value="medium">Medium priority</option><option value="low">Low priority</option>
+        </select>
         {isAdmin && <AddBookingDialog events={events} onCreated={(b) => setBookings((prev) => [b, ...prev])} />}
       </div>
 
