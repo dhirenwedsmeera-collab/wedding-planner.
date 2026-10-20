@@ -131,6 +131,7 @@ export interface Booking {
   /** Additional linked wedding functions; populated from booking_events. */
   event_ids?: string[];
   status: BookingStatus;
+  priority?: "low" | "medium" | "high";
   booking_date: string | null;
   contract_signed: boolean;
   advance_paid: number;
