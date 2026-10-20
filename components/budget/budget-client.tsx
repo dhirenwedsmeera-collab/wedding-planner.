@@ -155,7 +155,6 @@ function AddExpenseDialog({ lines, setLines, events, eventCategories, onCreated 
   const uniqueCategories = Array.from(new Set([...(eventId ? (eventCategories[eventId] ?? []) : []), ...lines.filter((line) => !eventId || line.event_id === eventId).map((line) => line.category.trim())].filter(Boolean))).sort();
   const selectedCategory = category && uniqueCategories.includes(category) ? category : uniqueCategories[0] ?? "";
   const [paidTo, setPaidTo] = useState("");
-  const [eventId, setEventId] = useState("");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   async function create() {
