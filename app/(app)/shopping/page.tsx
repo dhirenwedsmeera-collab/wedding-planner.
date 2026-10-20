@@ -13,11 +13,12 @@ export default async function ShoppingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: items }, { data: events }, { data: profiles }, { data: me }] = await Promise.all([
+  const [{ data: items }, { data: events }, { data: profiles }, { data: me }, { data: eventSections }] = await Promise.all([
     supabase.from("shopping_items").select("*"),
     supabase.from("events").select("*").eq("is_archived", false).order("sort_order"),
     supabase.from("profiles").select("*"),
     user ? supabase.from("profiles").select("*").eq("id", user.id).single() : Promise.resolve({ data: null }),
+    supabase.from("event_sections").select("event_id,name").order("sort_order"),
   ]);
 
   return (
@@ -32,6 +33,16 @@ export default async function ShoppingPage() {
         events={(events ?? []) as WeddingEvent[]}
         profiles={profiles ?? []}
         categories={CATEGORIES}
+        eventCategories={Object.fromEntries(
+          (events ?? []).map((event) => [
+            event.id,
+            Array.from(new Set([
+              "Outfits",
+              "Decorations",
+              ...(eventSections ?? []).filter((section) => section.event_id === event.id).map((section) => section.name),
+            ])),
+          ])
+        )}
         currentUserId={(me as Profile | null)?.id ?? null}
         isAdmin={(me as Profile | null)?.role === "admin"}
       />
