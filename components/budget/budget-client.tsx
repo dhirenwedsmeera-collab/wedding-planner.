@@ -59,10 +59,28 @@ export function BudgetClient({
 
   async function deleteExpense(expense: Expense) {
     if (!window.confirm(`Delete the expense "${expense.description}"? This cannot be undone.`)) return;
+
     const previous = expenses;
+    // Optimistically remove the row, but only keep it removed when Supabase
+    // confirms that a row was actually deleted. PostgREST can return no error
+    // when RLS filters the target row out, so request the deleted id explicitly.
     setExpenses((current) => current.filter((item) => item.id !== expense.id));
-    const { error } = await createClient().from("expenses").delete().eq("id", expense.id);
-    if (error) { setExpenses(previous); window.alert(`Couldn't delete expense: ${error.message}`); }
+    const { data, error } = await createClient()
+      .from("expenses")
+      .delete()
+      .eq("id", expense.id)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      setExpenses(previous);
+      window.alert(
+        error
+          ? `Couldn't delete expense: ${error.message}`
+          : "The expense was not deleted. Your account may not have permission to delete expenses. Please check the Supabase expenses delete policy."
+      );
+      return;
+    }
   }
 
   async function saveOverallBudgets() {
