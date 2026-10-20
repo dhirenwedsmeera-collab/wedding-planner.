@@ -548,7 +548,7 @@ function ImportTasksDialog({ events, existingTasks, onImported }: {
       return;
     }
     onImported(data as Task[]);
-    setMessage(`Imported ${data.length} tasks${duplicates.length ? `; skipped ${duplicates.length} existing duplicate${duplicates.length === 1 ? "" : "s"}` : ""}.`);
+    setMessage(`Imported ${data.length} tasks${duplicates > 0 ? `; skipped ${duplicates} existing duplicate${duplicates === 1 ? "" : "s"}` : ""}.`);
     setRecords([]); setFileName("");
   }
 
@@ -577,7 +577,7 @@ function ImportTasksDialog({ events, existingTasks, onImported }: {
           {records.length > 0 && <div className="rounded-xl border border-border p-3 text-sm space-y-1">
             <p><strong>{records.length}</strong> tasks found across {new Set(records.map((record) => record.section).filter(Boolean)).size} sections.</p>
             <p>{importable.length} new tasks will be imported.</p>
-            {duplicates.length > 0 && <p className="text-amber-700 dark:text-amber-300">{duplicates.length} duplicate task titles will be skipped.</p>}
+            {duplicates > 0 && <p className="text-amber-700 dark:text-amber-300">{duplicates} duplicate task titles will be skipped.</p>}
             <p className="text-xs text-muted-foreground">Urgent sections are marked High priority. Notes are saved in the task description; section names are saved as categories.</p>
           </div>}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
