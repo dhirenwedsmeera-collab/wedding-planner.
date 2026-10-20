@@ -7,7 +7,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
-import { LayoutGrid, Table2, Plus, Calendar as CalendarIcon, Trash2 } from "lucide-react";
+import { LayoutGrid, Table2, Plus, Calendar as CalendarIcon, Trash2, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -104,7 +104,10 @@ export function TasksClient({
         </select>
 
         {isAdmin && (
-          <CreateTaskDialog events={events} profiles={profiles} onCreated={(t) => setTasks((prev) => [t, ...prev])} />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ImportTasksDialog events={events} existingTasks={tasks} onImported={(created) => setTasks((prev) => [...created, ...prev])} />
+            <CreateTaskDialog events={events} profiles={profiles} onCreated={(t) => setTasks((prev) => [t, ...prev])} />
+          </div>
         )}
       </div>
 
@@ -463,6 +466,125 @@ function TaskDetailDialog({
           <div className="border-t border-border pt-4">
             {open && <TaskComments taskId={task.id} />}
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type ImportTaskRecord = {
+  section?: string;
+  title?: string;
+  priority?: string;
+  status?: string;
+  notes?: string;
+};
+
+function ImportTasksDialog({ events, existingTasks, onImported }: {
+  events: WeddingEvent[];
+  existingTasks: Task[];
+  onImported: (tasks: Task[]) => void;
+}) {
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const [eventId, setEventId] = useState(events[0]?.id ?? "");
+  const [records, setRecords] = useState<ImportTaskRecord[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const existingNames = new Set(existingTasks
+    .filter((task) => task.event_id === eventId)
+    .map((task) => task.name.trim().toLocaleLowerCase()));
+  const seenTitles = new Set<string>();
+  const importable = records.filter((record) => {
+    const title = record.title?.trim().toLocaleLowerCase();
+    if (!title || existingNames.has(title) || seenTitles.has(title)) return false;
+    seenTitles.add(title);
+    return true;
+  });
+  const duplicates = records.length - importable.length;
+
+  function reset() {
+    setRecords([]); setFileName(""); setError(""); setMessage("");
+  }
+
+  async function readFile(file?: File) {
+    reset();
+    if (!file) return;
+    setFileName(file.name);
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!Array.isArray(parsed) || parsed.some((item) => !item || typeof item !== "object" || typeof item.title !== "string")) {
+        throw new Error("The file must be the wedding-planner-tasks.json file with a list of tasks.");
+      }
+      setRecords(parsed as ImportTaskRecord[]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't read this JSON file.");
+    }
+  }
+
+  async function importTasks() {
+    if (!eventId) { setError("Choose the wedding event these tasks belong to."); return; }
+    if (importable.length === 0) { setError("There are no new tasks to import. Existing task titles are skipped to prevent duplicates."); return; }
+    setBusy(true); setError(""); setMessage("");
+    const rows = importable.map((record) => {
+      const priority = String(record.priority ?? "medium").toLowerCase();
+      const safePriority = (["critical", "high", "medium", "low"].includes(priority) ? priority : "medium") as TaskPriority;
+      return {
+        event_id: eventId,
+        name: record.title!.trim(),
+        category: record.section?.trim() || "Wedding planning",
+        description: record.notes?.trim() || null,
+        priority: safePriority,
+        status: "not_started" as TaskStatus,
+      };
+    });
+    const { data, error: insertError } = await supabase.from("tasks").insert(rows).select("*");
+    setBusy(false);
+    if (insertError || !data) {
+      setError(insertError?.message || "The tasks could not be imported.");
+      return;
+    }
+    onImported(data as Task[]);
+    setMessage(`Imported ${data.length} tasks${duplicates.length ? `; skipped ${duplicates.length} existing duplicate${duplicates.length === 1 ? "" : "s"}` : ""}.`);
+    setRecords([]); setFileName("");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline"><Upload className="mr-1.5 h-3.5 w-3.5" /> Import task list</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Import wedding tasks</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Import your prepared JSON list in one go. Tasks are grouped by section, and matching titles already in the selected event are skipped.</p>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium">Wedding event</span>
+            <select className="input w-full" value={eventId} onChange={(e) => setEventId(e.target.value)}>
+              <option value="">Choose an event</option>
+              {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-medium">Task JSON file</span>
+            <input type="file" accept=".json,application/json" className="input w-full" onChange={(e) => readFile(e.target.files?.[0])} />
+            <span className="text-xs text-muted-foreground">Choose <strong>wedding-planner-tasks.json</strong> from the bulk-import ZIP.</span>
+          </label>
+          {fileName && <p className="text-xs text-muted-foreground">Selected: {fileName}</p>}
+          {records.length > 0 && <div className="rounded-xl border border-border p-3 text-sm space-y-1">
+            <p><strong>{records.length}</strong> tasks found across {new Set(records.map((record) => record.section).filter(Boolean)).size} sections.</p>
+            <p>{importable.length} new tasks will be imported.</p>
+            {duplicates.length > 0 && <p className="text-amber-700 dark:text-amber-300">{duplicates.length} duplicate task titles will be skipped.</p>}
+            <p className="text-xs text-muted-foreground">Urgent sections are marked High priority. Notes are saved in the task description; section names are saved as categories.</p>
+          </div>}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+          {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
+          <Button className="w-full" onClick={importTasks} disabled={busy || records.length === 0 || !eventId || importable.length === 0}>
+            {busy ? "Importing tasks…" : `Import ${importable.length} tasks`}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
