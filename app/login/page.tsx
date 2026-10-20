@@ -13,8 +13,6 @@ export default function LoginPage() {
   const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,19 +21,9 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    if (mode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else router.push("/dashboard");
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName, role: "volunteer" } },
-      });
-      if (error) setError(error.message);
-      else setError("Check your email to confirm your account, then sign in.");
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setError(error.message);
+    else router.push("/dashboard");
     setLoading(false);
   }
 
@@ -62,18 +50,6 @@ export default function LoginPage() {
 
         <Card className="glass-card p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Full name</label>
-                <input
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Meera Shah"
-                />
-              </div>
-            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium">Email</label>
               <input
@@ -101,21 +77,14 @@ export default function LoginPage() {
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
+              {loading ? "Please wait…" : "Sign In"}
             </Button>
           </form>
 
-          <button
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"
-          >
-            {mode === "signin" ? "New family member? Create an account" : "Already have an account? Sign in"}
-          </button>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Access is by invitation only. Ask an administrator if you need an account.
+          </p>
         </Card>
-        <p className="mt-6 text-center text-xs text-white/70">
-          First account to sign up should be promoted to <code>admin</code> via the Supabase
-          dashboard — see README setup step 5.
-        </p>
       </motion.div>
     </div>
   );
