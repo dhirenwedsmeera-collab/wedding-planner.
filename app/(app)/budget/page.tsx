@@ -11,12 +11,13 @@ export default async function BudgetPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: lines }, { data: expenses }, { data: events }, { data: me }, { data: overallBudgets }] = await Promise.all([
+  const [{ data: lines }, { data: expenses }, { data: events }, { data: me }, { data: overallBudgets }, { data: eventSections }] = await Promise.all([
     supabase.from("budget_lines").select("*"),
     supabase.from("expenses").select("*").order("expense_date", { ascending: false }),
     supabase.from("events").select("*").eq("is_archived", false).order("sort_order"),
     user ? supabase.from("profiles").select("*").eq("id", user.id).single() : Promise.resolve({ data: null }),
     supabase.from("overall_budget_lines").select("*"),
+    supabase.from("event_sections").select("event_id,name").order("sort_order"),
   ]);
 
   return (
@@ -32,6 +33,7 @@ export default async function BudgetPage() {
         events={(events ?? []) as WeddingEvent[]}
         isAdmin={(me as Profile | null)?.role === "admin"}
         initialOverallBudgets={(overallBudgets ?? []) as any}
+        eventCategories={Object.fromEntries((events ?? []).map((event) => [event.id, Array.from(new Set(["Outfits", "Decorations", ...((eventSections ?? []).filter((section) => section.event_id === event.id).map((section) => section.name))])).sort()]))}
       />
     </div>
   );
