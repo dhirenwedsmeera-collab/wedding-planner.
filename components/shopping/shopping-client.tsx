@@ -12,10 +12,10 @@ import type { ShoppingItem, WeddingEvent, Profile } from "@/types/domain";
 import { formatCurrency } from "@/lib/utils";
 
 export function ShoppingClient({
-  initialItems, events, profiles, categories, currentUserId, isAdmin,
+  initialItems, events, profiles, categories, eventCategories, currentUserId, isAdmin,
 }: {
   initialItems: ShoppingItem[]; events: WeddingEvent[]; profiles: Profile[];
-  categories: string[]; currentUserId: string | null; isAdmin: boolean;
+  categories: string[]; eventCategories: Record<string, string[]>; currentUserId: string | null; isAdmin: boolean;
 }) {
   const [items, setItems] = useState(initialItems);
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -85,7 +85,7 @@ export function ShoppingClient({
         {allCategories.map((c) => (
           <button key={c} onClick={() => setCategoryFilter(c)} className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium ${categoryFilter === c ? "border-emerald-700 bg-emerald-700 text-white" : "border-border text-muted-foreground"}`}>{c}</button>
         ))}
-        {isAdmin && <AddItemDialog events={events} profiles={profiles} categories={allCategories} onCreated={(i) => setItems((prev) => [i, ...prev])} />}
+        {isAdmin && <AddItemDialog events={events} profiles={profiles} categories={allCategories} eventCategories={eventCategories} items={items} onCreated={(i) => setItems((prev) => [i, ...prev])} />}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -202,7 +202,7 @@ function ItemDetailDialog({
   );
 }
 
-function AddItemDialog({ events, profiles, categories, onCreated }: { events: WeddingEvent[]; profiles: Profile[]; categories: string[]; onCreated: (i: ShoppingItem) => void }) {
+function AddItemDialog({ events, profiles, categories, eventCategories, items, onCreated }: { events: WeddingEvent[]; profiles: Profile[]; categories: string[]; eventCategories: Record<string, string[]>; items: ShoppingItem[]; onCreated: (i: ShoppingItem) => void }) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -211,6 +211,15 @@ function AddItemDialog({ events, profiles, categories, onCreated }: { events: We
   const [eventId, setEventId] = useState(events[0]?.id ?? "");
   const [budget, setBudget] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+
+  // Event pages have their own built-in categories (Outfits and Decorations)
+  // plus any custom sections created for that event. Keep existing categories
+  // already used by shopping items linked to the same event too.
+  const eventSpecificCategories = useMemo(() => {
+    if (!eventId) return categories;
+    const usedForEvent = items.filter((item) => item.event_id === eventId).map((item) => item.category);
+    return Array.from(new Set([...(eventCategories[eventId] ?? []), ...usedForEvent].filter(Boolean))).sort();
+  }, [categories, eventCategories, eventId, items]);
 
   async function create() {
     if (!name.trim()) return;
@@ -238,9 +247,17 @@ function AddItemDialog({ events, profiles, categories, onCreated }: { events: We
           <input className="input" placeholder="Item name" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <select className="input" value={category} onChange={(e) => { setCategory(e.target.value); setCustomCategory(""); }}>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              {eventSpecificCategories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}>
+            <select className="input" value={eventId} onChange={(e) => {
+              const nextEventId = e.target.value;
+              setEventId(nextEventId);
+              setCustomCategory("");
+              const nextCategories = nextEventId
+                ? Array.from(new Set([...(eventCategories[nextEventId] ?? []), ...items.filter((item) => item.event_id === nextEventId).map((item) => item.category)].filter(Boolean))).sort()
+                : categories;
+              setCategory(nextCategories[0] ?? "Other");
+            }}>
               <option value="">No event</option>
               {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
