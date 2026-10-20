@@ -205,32 +205,73 @@ function AddGuestDialog({ onCreated }: { onCreated: (g: Guest) => void }) {
   const [category, setCategory] = useState<GuestCategory>("family");
   const [side, setSide] = useState<WeddingSide>("both");
   const [phone, setPhone] = useState("");
+  const [food, setFood] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function create() {
-    if (!name.trim()) return;
-    const { data, error } = await supabase.from("guests").insert({ full_name: name, category, side, phone: phone || null }).select().single();
-    if (!error && data) onCreated(data as Guest);
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("guests")
+      .insert({
+        full_name: name.trim(),
+        category,
+        side,
+        phone: phone.trim() || null,
+        food_preference: food.trim() || null,
+        notes: notes.trim() || null,
+      })
+      .select()
+      .single();
+    setSaving(false);
+
+    if (error || !data) {
+      alert(`Couldn't add guest: ${error?.message ?? "No guest record was returned."}`);
+      return;
+    }
+
+    onCreated(data as Guest);
     setOpen(false);
-    setName(""); setPhone("");
+    setName("");
+    setCategory("family");
+    setSide("both");
+    setPhone("");
+    setFood("");
+    setNotes("");
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button size="sm" className="ml-auto"><Plus className="h-3.5 w-3.5" /> Add guest</Button></DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Add guest</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <input className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="block space-y-1 text-xs text-muted-foreground">Full name
+            <input className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
           <div className="grid grid-cols-2 gap-3">
-            <select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}>
-              <option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option>
-            </select>
-            <select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}>
-              <option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option>
-            </select>
+            <label className="space-y-1 text-xs text-muted-foreground">Category
+              <select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}>
+                <option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">Side
+              <select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}>
+                <option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option>
+              </select>
+            </label>
           </div>
-          <input className="input" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <Button className="w-full" onClick={create}>Add guest</Button>
+          <label className="block space-y-1 text-xs text-muted-foreground">Phone
+            <input className="input" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </label>
+          <label className="block space-y-1 text-xs text-muted-foreground">Food preference
+            <input className="input" placeholder="e.g. vegetarian, vegan, allergies" value={food} onChange={(e) => setFood(e.target.value)} />
+          </label>
+          <label className="block space-y-1 text-xs text-muted-foreground">Notes
+            <textarea className="input" rows={3} placeholder="Additional notes about this guest" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
+          <Button className="w-full" onClick={create} disabled={saving || !name.trim()}>{saving ? "Adding..." : "Add guest"}</Button>
         </div>
       </DialogContent>
     </Dialog>
