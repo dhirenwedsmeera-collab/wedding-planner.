@@ -150,6 +150,8 @@ function AddExpenseDialog({ lines, events, onCreated }: { lines: BudgetLine[]; e
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [budgetLineId, setBudgetLineId] = useState(lines[0]?.id ?? "");
+  const uniqueCategories = Array.from(new Set(lines.map((line) => line.category.trim()).filter(Boolean)));
+  const selectedCategory = lines.find((line) => line.id === budgetLineId)?.category ?? uniqueCategories[0] ?? "";
   const [paidTo, setPaidTo] = useState("");
   const [eventId, setEventId] = useState("");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
@@ -174,11 +176,12 @@ function AddExpenseDialog({ lines, events, onCreated }: { lines: BudgetLine[]; e
         <div className="space-y-3">
           <input className="input" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
           <input type="number" className="input" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          <select className="input" value={budgetLineId} onChange={(e) => setBudgetLineId(e.target.value)}>
-            {lines.map((l) => {
-              const ev = events.find((e) => e.id === l.event_id);
-              return <option key={l.id} value={l.id}>{ev?.name} — {l.category}</option>;
-            })}
+          <select
+            className="input"
+            value={selectedCategory}
+            onChange={(e) => setBudgetLineId(lines.find((line) => line.category.trim() === e.target.value)?.id ?? "")}
+          >
+            {uniqueCategories.map((category) => <option key={category} value={category}>{category}</option>)}
           </select>
           <label className="block space-y-1 text-sm">Wedding event (optional)
             <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">Use budget line / no event</option>{events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}</select>
