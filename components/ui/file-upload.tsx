@@ -22,12 +22,6 @@ export function FileUpload({
   async function handleFile(file: File) {
     setUploading(true);
     setError(null);
-    if (accept === "image/*,application/pdf" && !file.type.startsWith("image/") && file.type !== "application/pdf") {
-      setError("Please choose an image or PDF file.");
-      setUploading(false);
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) { setError("Please choose a file smaller than 10 MB."); setUploading(false); return; }
     const ext = file.name.split(".").pop();
     const path = `${pathPrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
