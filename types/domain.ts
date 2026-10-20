@@ -117,6 +117,8 @@ export interface Vendor {
   category: VendorCategory;
   phone: string | null;
   email: string | null;
+  /** Multiple vendor contacts; legacy phone/email remain for compatibility. */
+  contacts?: { name: string; phone: string; email: string }[] | null;
   advance_paid: number;
   balance_due: number;
   rating: number | null;
