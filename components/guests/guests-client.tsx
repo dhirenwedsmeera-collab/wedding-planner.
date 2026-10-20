@@ -146,7 +146,7 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(guest.full_name);
   const [category, setCategory] = useState<GuestCategory>(guest.category);
-  const [side, setSide] = useState<WeddingSide>(guest.side);
+  const [side, setSide] = useState<WeddingSide>(guest.side === "both" ? "bride" : guest.side);
   const [phone, setPhone] = useState(guest.phone ?? "");
   const [email, setEmail] = useState(guest.email ?? "");
   const [rsvp, setRsvp] = useState<RsvpStatus>(guest.rsvp_status);
@@ -183,7 +183,7 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs text-muted-foreground">Full name<input className="input" value={name} onChange={(e) => setName(e.target.value)} /></label>
           <label className="space-y-1 text-xs text-muted-foreground">Category<select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option></select></label>
-          <label className="space-y-1 text-xs text-muted-foreground">Side<select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}><option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option></select></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Side<select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}><option value="bride">Bride</option><option value="groom">Groom</option></select></label>
           <label className="space-y-1 text-xs text-muted-foreground">Phone<input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
           <label className="space-y-1 text-xs text-muted-foreground">Email<input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
           <label className="space-y-1 text-xs text-muted-foreground">RSVP status<select className="input" value={rsvp} onChange={(e) => setRsvp(e.target.value as RsvpStatus)}><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="declined">Declined</option><option value="no_response">No response</option></select></label>
@@ -203,7 +203,7 @@ function AddGuestDialog({ onCreated }: { onCreated: (g: Guest) => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<GuestCategory>("family");
-  const [side, setSide] = useState<WeddingSide>("both");
+  const [side, setSide] = useState<WeddingSide>("bride");
   const [phone, setPhone] = useState("");
   const [food, setFood] = useState("");
   const [notes, setNotes] = useState("");
@@ -235,7 +235,7 @@ function AddGuestDialog({ onCreated }: { onCreated: (g: Guest) => void }) {
     setOpen(false);
     setName("");
     setCategory("family");
-    setSide("both");
+    setSide("bride");
     setPhone("");
     setFood("");
     setNotes("");
@@ -258,7 +258,7 @@ function AddGuestDialog({ onCreated }: { onCreated: (g: Guest) => void }) {
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">Side
               <select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}>
-                <option value="bride">Bride</option><option value="groom">Groom</option><option value="both">Both</option>
+                <option value="bride">Bride</option><option value="groom">Groom</option>
               </select>
             </label>
           </div>
