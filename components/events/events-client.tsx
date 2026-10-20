@@ -43,9 +43,9 @@ export function EventsClient({
           {events.map((e) => (
             <motion.div key={e.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}>
               <Card className="gold-hover overflow-hidden">
-                <div className={`relative h-28 p-4 text-white ${EVENT_GRADIENTS[e.color_theme] ?? EVENT_GRADIENTS.emerald}`}>
+                <div className="relative h-28 p-4" style={{ background: `linear-gradient(135deg, ${e.color_primary ?? "#166534"}, ${e.color_accent ?? "#d4a72c"})`, color: e.color_secondary ?? "#f7f3e8" }}>
                   <p className="font-display text-xl font-semibold">{e.name}</p>
-                  <p className="text-xs text-white/85">{formatDate(e.event_date)}{e.venue ? ` · ${e.venue}` : ""}</p>
+                  <p className="text-xs opacity-85">{formatDate(e.event_date)}{e.venue ? ` · ${e.venue}` : ""}</p>
                   {isAdmin && (
                     <div className="absolute right-3 top-3 flex gap-1.5">
                       <EditEventDialog event={e} onSaved={(patch) => updateEvent(e.id, patch)} />
