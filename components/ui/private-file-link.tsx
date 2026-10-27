@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -23,6 +24,8 @@ export function PrivateFileLink({
   const [error, setError] = useState<string | null>(null);
 
   async function openFile() {
+    if (busy) return;
+
     setError(null);
 
     const splitAt = value.indexOf(":");
@@ -47,6 +50,16 @@ export function PrivateFileLink({
       return;
     }
 
+    // Open the tab directly from the click so the browser is less
+    // likely to block it while the secure link is being generated.
+    const newTab = window.open("about:blank", "_blank");
+
+    if (!newTab) {
+      setError("Your browser blocked the new tab. Please allow pop-ups and try again.");
+      return;
+    }
+
+    newTab.opener = null;
     setBusy(true);
 
     try {
@@ -60,16 +73,9 @@ export function PrivateFileLink({
         throw signError ?? new Error("Could not create a secure link.");
       }
 
-      const opened = window.open(
-        data.signedUrl,
-        "_blank",
-        "noopener,noreferrer"
-      );
-
-      if (!opened) {
-        setError("Allow pop-ups to open this file.");
-      }
+      newTab.location.href = data.signedUrl;
     } catch {
+      newTab.close();
       setError(
         "Unable to open this file. Check your access and try again."
       );
