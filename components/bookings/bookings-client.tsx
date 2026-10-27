@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo, useState } from "react";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FileUpload } from "@/components/ui/file-upload";
+import { PrivateFileLink } from "@/components/ui/private-file-link";
 import { createClient } from "@/lib/supabase/client";
 import {
   BOOKING_CATEGORY_LABELS,
@@ -166,7 +168,7 @@ export function BookingsClient({
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] sm:flex-wrap sm:overflow-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => (
           <button
             key={f}
@@ -192,7 +194,6 @@ export function BookingsClient({
           {filtered.map((b) => {
             const urgency = getBookingUrgency(b.category, b.status);
             const style = URGENCY_STYLES[urgency];
-            const isUnbooked = b.status === "not_booked" || b.status === "enquired" || b.status === "negotiating";
             return (
               <motion.div
                 key={b.id}
@@ -361,7 +362,21 @@ function EditBookingDialog({
             Contract signed
           </label>
           <Field label="Contract file">
-            <FileUpload bucket="contracts" pathPrefix={booking.id} value={form.contract_url} onChange={(url) => setForm({ ...form, contract_url: url })} label="Upload contract" />
+            <FileUpload
+              bucket="contracts"
+              pathPrefix={booking.id}
+              value={form.contract_url}
+              onChange={(url) => setForm({ ...form, contract_url: url })}
+              label="Upload contract"
+            />
+            {form.contract_url && (
+              <div className="mt-2">
+                <PrivateFileLink
+                  value={form.contract_url}
+                  label="View contract"
+                />
+              </div>
+            )}
           </Field>
           <Field label="Notes"><textarea className="input" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
           <Button className="w-full" onClick={save}>Save booking</Button>
