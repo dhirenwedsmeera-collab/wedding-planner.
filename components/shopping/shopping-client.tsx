@@ -483,13 +483,33 @@ function ItemDetailDialog({
             </span>
 
             {canUploadReceipt ? (
-              <FileUpload
-                bucket="receipts"
-                pathPrefix={item.id}
-                value={receiptUrl}
-                onChange={setReceiptUrl}
-                label="Upload receipt"
-              />
+              <div className="space-y-2">
+                {receiptUrl && (
+                  <PrivateFileLink
+                    value={receiptUrl}
+                    className="text-xs"
+                    label="View receipt"
+                  />
+                )}
+
+                <FileUpload
+                  bucket="receipts"
+                  pathPrefix={item.id}
+                  value={null}
+                  onChange={setReceiptUrl}
+                  label={receiptUrl ? "Replace receipt" : "Upload receipt"}
+                />
+
+                {receiptUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setReceiptUrl(null)}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove receipt reference
+                  </button>
+                )}
+              </div>
             ) : canAccessReceipts && receiptUrl ? (
               <PrivateFileLink
                 value={receiptUrl}
