@@ -11,7 +11,7 @@ export type BookingCategory =
   | "venue" | "flowers" | "jeweler" | "invitation_printing" | "accommodation" | "other";
 
 export type RsvpStatus = "pending" | "confirmed" | "declined" | "no_response";
-export type GuestCategory = "family" | "friend" | "vip";
+export type GuestCategory = "family" | "friend" | "vip" | "reserve";
 export type VendorCategory =
   | "photographer" | "decorator" | "catering" | "makeup" | "mehendi_artist"
   | "dj" | "venue" | "flowers" | "jeweler" | "other";
@@ -106,6 +106,8 @@ export interface Guest {
   email: string | null;
   rsvp_status: RsvpStatus;
   invitation_sent: boolean;
+  save_the_date_sent?: boolean;
+  save_the_date_sent_at?: string | null;
   food_preference: string | null;
   plus_ones: number;
   notes: string | null;
