@@ -26,6 +26,7 @@ export function GuestsClient({
   const [sideFilter, setSideFilter] = useState<"all" | "bride" | "groom">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | GuestCategory>("all");
   const [rsvpFilter, setRsvpFilter] = useState<"all" | RsvpStatus>("all");
+  const [saveDateFilter, setSaveDateFilter] = useState<"all" | "sent" | "not_sent">("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [deletingGuestId, setDeletingGuestId] = useState<string | null>(null);
   const [guestEventMap, setGuestEventMap] = useState<Record<string, GuestEventLink[]>>(() => {
@@ -50,15 +51,17 @@ export function GuestsClient({
       const matchesSide = sideFilter === "all" || g.side === sideFilter || g.side === "both";
       const matchesCategory = categoryFilter === "all" || g.category === categoryFilter;
       const matchesRsvp = rsvpFilter === "all" || g.rsvp_status === rsvpFilter;
-      return matchesSearch && matchesSide && matchesCategory && matchesRsvp;
+      const matchesSaveDate = saveDateFilter === "all" || (saveDateFilter === "sent" ? Boolean(g.save_the_date_sent) : !g.save_the_date_sent);
+      return matchesSearch && matchesSide && matchesCategory && matchesRsvp && matchesSaveDate;
     });
-  }, [eventFilteredGuests, search, sideFilter, categoryFilter, rsvpFilter]);
+  }, [eventFilteredGuests, search, sideFilter, categoryFilter, rsvpFilter, saveDateFilter]);
 
   const totalGuests = eventFilteredGuests.length;
   const groomGuests = eventFilteredGuests.filter((g) => g.side === "groom" || g.side === "both").length;
   const brideGuests = eventFilteredGuests.filter((g) => g.side === "bride" || g.side === "both").length;
   const confirmed = eventFilteredGuests.filter((g) => g.rsvp_status === "confirmed").length;
   const invitationsSent = eventFilteredGuests.filter((g) => g.invitation_sent).length;
+  const saveDatesSent = eventFilteredGuests.filter((g) => g.save_the_date_sent).length;
 
   async function deleteGuest(guest: Guest) {
     if (!isAdmin || deletingGuestId) return;
@@ -94,6 +97,14 @@ export function GuestsClient({
     }
   }
 
+  async function updateSaveTheDate(guest: Guest, sent: boolean) {
+    const sentAt = sent ? (guest.save_the_date_sent_at || new Date().toISOString().slice(0, 10)) : null;
+    const changes = { save_the_date_sent: sent, save_the_date_sent_at: sentAt };
+    const { error } = await supabase.from("guests").update(changes).eq("id", guest.id);
+    if (error) { alert(`Couldn't update Save the Date status: ${error.message}`); return; }
+    setGuests((prev) => prev.map((g) => g.id === guest.id ? { ...g, ...changes } : g));
+  }
+
   async function updateRsvp(id: string, rsvp_status: RsvpStatus) {
     setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, rsvp_status } : g)));
     await supabase.from("guests").update({ rsvp_status }).eq("id", id);
@@ -109,6 +120,7 @@ export function GuestsClient({
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
         <span>Confirmed: <strong className="text-foreground">{confirmed}</strong></span>
         <span>Invitations sent: <strong className="text-foreground">{invitationsSent}</strong></span>
+        <span>Save the Dates sent: <strong className="text-foreground">{saveDatesSent}</strong> / {totalGuests}</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -124,7 +136,10 @@ export function GuestsClient({
           <option value="all">All sides</option><option value="bride">Bride</option><option value="groom">Groom</option>
         </select>
         <select aria-label="Filter by category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)} className="input w-auto py-1.5 text-xs">
-          <option value="all">All categories</option><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option>
+          <option value="all">All categories</option><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option><option value="reserve">Reserve</option>
+        </select>
+        <select aria-label="Filter by Save the Date" value={saveDateFilter} onChange={(e) => setSaveDateFilter(e.target.value as typeof saveDateFilter)} className="input w-auto py-1.5 text-xs">
+          <option value="all">All Save the Date statuses</option><option value="sent">Save the Date sent</option><option value="not_sent">Save the Date not sent</option>
         </select>
         <select aria-label="Filter by RSVP" value={rsvpFilter} onChange={(e) => setRsvpFilter(e.target.value as typeof rsvpFilter)} className="input w-auto py-1.5 text-xs">
           <option value="all">All RSVP statuses</option><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="declined">Declined</option><option value="no_response">No response</option>
@@ -140,6 +155,7 @@ export function GuestsClient({
               <th className="px-4 py-3">Category</th>
               <th className="px-4 py-3">Side</th>
               <th className="px-4 py-3">RSVP</th>
+              <th className="px-4 py-3">Save the Date</th>
               <th className="px-4 py-3">Events</th>
               <th className="px-4 py-3">Food</th>
               <th className="px-4 py-3">Contact</th>
@@ -168,6 +184,12 @@ export function GuestsClient({
                   ) : (
                     <Badge variant={RSVP_COLOR[g.rsvp_status]}>{g.rsvp_status.replace("_", " ")}</Badge>
                   )}
+                </td>
+                <td className="px-4 py-3 text-xs">
+                  <label className="inline-flex items-center gap-2 whitespace-nowrap">
+                    <input type="checkbox" checked={Boolean(g.save_the_date_sent)} disabled={!isAdmin} onChange={(e) => void updateSaveTheDate(g, e.target.checked)} />
+                    <span>{g.save_the_date_sent ? `Sent${g.save_the_date_sent_at ? ` · ${g.save_the_date_sent_at}` : ""}` : "Not sent"}</span>
+                  </label>
                 </td>
                 <td className="px-4 py-3">
                   <GuestEventsCell
@@ -224,6 +246,8 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
   const [plusOnes, setPlusOnes] = useState(String(guest.plus_ones ?? 0));
   const [notes, setNotes] = useState(guest.notes ?? "");
   const [invitationSent, setInvitationSent] = useState(guest.invitation_sent);
+  const [saveTheDateSent, setSaveTheDateSent] = useState(Boolean(guest.save_the_date_sent));
+  const [saveTheDateSentAt, setSaveTheDateSentAt] = useState(guest.save_the_date_sent_at ?? "");
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -234,6 +258,8 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
       email: email.trim() || null, rsvp_status: rsvp, food_preference: food.trim() || null,
       plus_ones: Math.max(0, Number.parseInt(plusOnes, 10) || 0), notes: notes.trim() || null,
       invitation_sent: invitationSent,
+      save_the_date_sent: saveTheDateSent,
+      save_the_date_sent_at: saveTheDateSent ? (saveTheDateSentAt || new Date().toISOString().slice(0, 10)) : null,
     };
     const { error } = await supabase.from("guests").update(changes).eq("id", guest.id);
     setSaving(false);
@@ -252,7 +278,7 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
         <DialogHeader><DialogTitle>Edit guest details</DialogTitle></DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs text-muted-foreground">Full name<input className="input" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="space-y-1 text-xs text-muted-foreground">Category<select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option></select></label>
+          <label className="space-y-1 text-xs text-muted-foreground">Category<select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}><option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option><option value="reserve">Reserve</option></select></label>
           <label className="space-y-1 text-xs text-muted-foreground">Side<select className="input" value={side} onChange={(e) => setSide(e.target.value as WeddingSide)}><option value="bride">Bride</option><option value="groom">Groom</option></select></label>
           <label className="space-y-1 text-xs text-muted-foreground">Phone<input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
           <label className="space-y-1 text-xs text-muted-foreground">Email<input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
@@ -260,6 +286,8 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
           <label className="space-y-1 text-xs text-muted-foreground">Food preference<input className="input" value={food} onChange={(e) => setFood(e.target.value)} /></label>
           <label className="space-y-1 text-xs text-muted-foreground">Plus ones<input type="number" min="0" className="input" value={plusOnes} onChange={(e) => setPlusOnes(e.target.value)} /></label>
           <label className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-2"><input type="checkbox" checked={invitationSent} onChange={(e) => setInvitationSent(e.target.checked)} /> Invitation sent</label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-2"><input type="checkbox" checked={saveTheDateSent} onChange={(e) => setSaveTheDateSent(e.target.checked)} /> Save the Date sent</label>
+          {saveTheDateSent && <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">Save the Date sent on<input type="date" className="input" value={saveTheDateSentAt} onChange={(e) => setSaveTheDateSentAt(e.target.value)} /></label>}
           <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">Notes<textarea className="input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
           <Button className="w-full sm:col-span-2" onClick={save} disabled={saving || !name.trim()}>{saving ? "Saving..." : "Save guest details"}</Button>
         </div>
@@ -323,7 +351,7 @@ function AddGuestDialog({ onCreated }: { onCreated: (g: Guest) => void }) {
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1 text-xs text-muted-foreground">Category
               <select className="input" value={category} onChange={(e) => setCategory(e.target.value as GuestCategory)}>
-                <option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option>
+                <option value="family">Family</option><option value="friend">Friend</option><option value="vip">VIP</option><option value="reserve">Reserve</option>
               </select>
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">Side
