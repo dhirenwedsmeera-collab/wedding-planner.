@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Phone, Pencil } from "lucide-react";
+import { Plus, Search, Phone, Pencil, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ export function GuestsClient({
   const [sideFilter, setSideFilter] = useState<"all" | "bride" | "groom">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | GuestCategory>("all");
   const [rsvpFilter, setRsvpFilter] = useState<"all" | RsvpStatus>("all");
+  const [eventFilter, setEventFilter] = useState<string>("all");
+  const [deletingGuestId, setDeletingGuestId] = useState<string | null>(null);
   const [guestEventMap, setGuestEventMap] = useState<Record<string, GuestEventLink[]>>(() => {
     const map: Record<string, GuestEventLink[]> = {};
     initialGuestEvents.forEach((ge) => {
@@ -35,17 +37,62 @@ export function GuestsClient({
   });
   const supabase = createClient();
 
+  const eventFilteredGuests = useMemo(() => {
+    if (eventFilter === "all") return guests;
+    return guests.filter((g) =>
+      (guestEventMap[g.id] ?? []).some((link) => link.event_id === eventFilter)
+    );
+  }, [guests, guestEventMap, eventFilter]);
+
   const filtered = useMemo(() => {
-    return guests.filter((g) => {
+    return eventFilteredGuests.filter((g) => {
       const matchesSearch = g.full_name.toLowerCase().includes(search.toLowerCase());
-      const matchesSide = sideFilter === "all" || g.side === sideFilter;
+      const matchesSide = sideFilter === "all" || g.side === sideFilter || g.side === "both";
       const matchesCategory = categoryFilter === "all" || g.category === categoryFilter;
       const matchesRsvp = rsvpFilter === "all" || g.rsvp_status === rsvpFilter;
       return matchesSearch && matchesSide && matchesCategory && matchesRsvp;
     });
-  }, [guests, search, sideFilter, categoryFilter, rsvpFilter]);
+  }, [eventFilteredGuests, search, sideFilter, categoryFilter, rsvpFilter]);
 
-  const confirmed = guests.filter((g) => g.rsvp_status === "confirmed").length;
+  const totalGuests = eventFilteredGuests.length;
+  const groomGuests = eventFilteredGuests.filter((g) => g.side === "groom" || g.side === "both").length;
+  const brideGuests = eventFilteredGuests.filter((g) => g.side === "bride" || g.side === "both").length;
+  const confirmed = eventFilteredGuests.filter((g) => g.rsvp_status === "confirmed").length;
+  const invitationsSent = eventFilteredGuests.filter((g) => g.invitation_sent).length;
+
+  async function deleteGuest(guest: Guest) {
+    if (!isAdmin || deletingGuestId) return;
+    const confirmedDelete = window.confirm(`Delete ${guest.full_name}? This cannot be undone.`);
+    if (!confirmedDelete) return;
+
+    setDeletingGuestId(guest.id);
+    try {
+      // Remove event assignments first so there are no orphaned guest-event links.
+      const { error: linksError } = await supabase
+        .from("guest_events")
+        .delete()
+        .eq("guest_id", guest.id);
+      if (linksError) throw linksError;
+
+      const { error: guestError } = await supabase
+        .from("guests")
+        .delete()
+        .eq("id", guest.id);
+      if (guestError) throw guestError;
+
+      setGuests((prev) => prev.filter((g) => g.id !== guest.id));
+      setGuestEventMap((prev) => {
+        const next = { ...prev };
+        delete next[guest.id];
+        return next;
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      alert(`Couldn't delete guest: ${message}`);
+    } finally {
+      setDeletingGuestId(null);
+    }
+  }
 
   async function updateRsvp(id: string, rsvp_status: RsvpStatus) {
     setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, rsvp_status } : g)));
@@ -54,10 +101,14 @@ export function GuestsClient({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Total guests</p><p className="font-display text-2xl font-semibold">{guests.length}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Confirmed</p><p className="font-display text-2xl font-semibold">{confirmed}</p></Card>
-        <Card className="p-4"><p className="text-xs text-muted-foreground">Invitations sent</p><p className="font-display text-2xl font-semibold">{guests.filter((g) => g.invitation_sent).length}</p></Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Total guests{eventFilter !== "all" ? " · selected event" : ""}</p><p className="font-display text-2xl font-semibold">{totalGuests}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Groom's side</p><p className="font-display text-2xl font-semibold">{groomGuests}</p></Card>
+        <Card className="p-4"><p className="text-xs text-muted-foreground">Bride's side</p><p className="font-display text-2xl font-semibold">{brideGuests}</p></Card>
+      </div>
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <span>Confirmed: <strong className="text-foreground">{confirmed}</strong></span>
+        <span>Invitations sent: <strong className="text-foreground">{invitationsSent}</strong></span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -65,6 +116,10 @@ export function GuestsClient({
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search guests…" className="input pl-9" />
         </div>
+        <select aria-label="Filter by event" value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="input w-auto py-1.5 text-xs">
+          <option value="all">All events</option>
+          {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+        </select>
         <select aria-label="Filter by side" value={sideFilter} onChange={(e) => setSideFilter(e.target.value as typeof sideFilter)} className="input w-auto py-1.5 text-xs">
           <option value="all">All sides</option><option value="bride">Bride</option><option value="groom">Groom</option>
         </select>
@@ -88,6 +143,7 @@ export function GuestsClient({
               <th className="px-4 py-3">Events</th>
               <th className="px-4 py-3">Food</th>
               <th className="px-4 py-3">Contact</th>
+              {isAdmin && <th className="px-4 py-3">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -131,6 +187,20 @@ export function GuestsClient({
                     </a>
                   )}
                 </td>
+                {isAdmin && (
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      title={`Delete ${g.full_name}`}
+                      aria-label={`Delete ${g.full_name}`}
+                      disabled={deletingGuestId === g.id}
+                      onClick={() => void deleteGuest(g)}
+                      className="rounded-md p-1 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
