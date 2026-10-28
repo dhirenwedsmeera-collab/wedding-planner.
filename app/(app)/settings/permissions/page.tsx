@@ -38,18 +38,50 @@ export default function PermissionsPage() {
   const [selectedUser, setSelectedUser] = useState("");
   const [permissions, setPermissions] = useState<SectionPermission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessChecked, setAccessChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadUsers() {
       setLoading(true);
       setMessage("");
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data: myProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (cancelled) return;
+
+      if (profileError || myProfile?.role !== "admin") {
+        setMessage("Access denied. Only admins can manage permissions.");
+        setLoading(false);
+        setAccessChecked(true);
+        return;
+      }
+
+      setAccessChecked(true);
 
       const { data: profileData, error } = await supabase
         .from("profiles")
         .select("id, full_name, role")
         .order("full_name");
+
+      if (cancelled) return;
 
       if (error) {
         setMessage(`Could not load users: ${error.message}`);
@@ -61,7 +93,7 @@ export default function PermissionsPage() {
       setUsers(validUsers);
 
       const firstNonAdmin = validUsers.find(
-        (user) => user.role !== "admin"
+        (profile) => profile.role !== "admin"
       );
 
       if (firstNonAdmin) {
@@ -72,11 +104,17 @@ export default function PermissionsPage() {
     }
 
     void loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
   }, [supabase]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadPermissions() {
-      if (!selectedUser) {
+      if (!selectedUser || !accessChecked || message.startsWith("Access denied")) {
         setPermissions([]);
         return;
       }
@@ -88,6 +126,8 @@ export default function PermissionsPage() {
         .select("section_key, can_view, can_edit")
         .eq("user_id", selectedUser);
 
+      if (cancelled) return;
+
       if (error) {
         setMessage(`Could not load permissions: ${error.message}`);
         setPermissions([]);
@@ -98,9 +138,13 @@ export default function PermissionsPage() {
     }
 
     void loadPermissions();
-  }, [selectedUser, supabase]);
 
-  function permissionFor(sectionKey: string) {
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUser, supabase, accessChecked, message]);
+
+  function permissionFor(sectionKey: string): SectionPermission {
     return (
       permissions.find((item) => item.section_key === sectionKey) ?? {
         section_key: sectionKey,
@@ -120,14 +164,15 @@ export default function PermissionsPage() {
         (item) => item.section_key === sectionKey
       );
 
-      const next = existing
+      const next: SectionPermission = existing
         ? { ...existing, [field]: value }
         : {
             section_key: sectionKey,
             can_view: false,
             can_edit: false,
-            [field]: value,
           };
+
+      next[field] = value;
 
       if (field === "can_view" && !value) {
         next.can_edit = false;
@@ -144,22 +189,42 @@ export default function PermissionsPage() {
     });
   }
 
-
   async function savePermissions() {
-    if (!selectedUser) return;
+    if (!selectedUser || saving) return;
 
     setSaving(true);
     setMessage("");
 
     try {
       const chosenUser = users.find(
-        (user) => user.id === selectedUser
+        (profile) => profile.id === selectedUser
       );
 
       if (!chosenUser || chosenUser.role === "admin") {
         setMessage(
           "Admins always have full access; their permissions cannot be restricted here."
         );
+        return;
+      }
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        setMessage("Your session has expired. Please sign in again.");
+        return;
+      }
+
+      const { data: myProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || myProfile?.role !== "admin") {
+        setMessage("Access denied. Only admins can manage permissions.");
         return;
       }
 
@@ -171,6 +236,7 @@ export default function PermissionsPage() {
           section_key: section.key,
           can_view: permission.can_view,
           can_edit: permission.can_edit,
+          updated_by: user.id,
         };
       });
 
@@ -187,15 +253,27 @@ export default function PermissionsPage() {
 
       setMessage("Permissions saved successfully.");
     } catch {
-      setMessage("Something went wrong while saving permissions. Please try again.");
+      setMessage(
+        "Something went wrong while saving permissions. Please try again."
+      );
     } finally {
       setSaving(false);
     }
   }
 
+  if (loading || !accessChecked) {
+    return <main className="p-6">Checking access…</main>;
+  }
 
-  if (loading) {
-    return <main className="p-6">Loading users…</main>;
+  if (message.startsWith("Access denied")) {
+    return (
+      <main className="mx-auto max-w-4xl p-6">
+        <h1 className="text-xl font-semibold">Access denied</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Only admins can manage user permissions.
+        </p>
+      </main>
+    );
   }
 
   return (
@@ -221,10 +299,10 @@ export default function PermissionsPage() {
         >
           <option value="">Choose a user…</option>
           {users
-            .filter((user) => user.role !== "admin")
-            .map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.full_name || "Unnamed user"} ({user.role})
+            .filter((profile) => profile.role !== "admin")
+            .map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.full_name || "Unnamed user"} ({profile.role})
               </option>
             ))}
         </select>
