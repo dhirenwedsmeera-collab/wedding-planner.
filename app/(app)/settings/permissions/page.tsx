@@ -144,57 +144,55 @@ export default function PermissionsPage() {
     });
   }
 
+
   async function savePermissions() {
     if (!selectedUser) return;
 
     setSaving(true);
     setMessage("");
 
-    const chosenUser = users.find((user) => user.id === selectedUser);
+    try {
+      const chosenUser = users.find(
+        (user) => user.id === selectedUser
+      );
 
-    if (!chosenUser || chosenUser.role === "admin") {
-      setMessage("Admins always have full access; their permissions cannot be restricted here.");
-      setSaving(false);
-      return;
-    }
-
-    const rows = permissions
-      .filter((item) => item.can_view || item.can_edit)
-      .map((item) => ({
-        user_id: selectedUser,
-        section_key: item.section_key,
-        can_view: item.can_view,
-        can_edit: item.can_edit,
-      }));
-
-    const { error: deleteError } = await supabase
-      .from("user_section_permissions")
-      .delete()
-      .eq("user_id", selectedUser);
-
-    if (deleteError) {
-      setMessage(`Could not save permissions: ${deleteError.message}`);
-      setSaving(false);
-      return;
-    }
-
-    if (rows.length > 0) {
-      const { error: insertError } = await supabase
-        .from("user_section_permissions")
-        .insert(rows);
-
-      if (insertError) {
+      if (!chosenUser || chosenUser.role === "admin") {
         setMessage(
-          `Could not save all permissions: ${insertError.message}. Please reload and check the user's permissions.`
+          "Admins always have full access; their permissions cannot be restricted here."
         );
-        setSaving(false);
         return;
       }
-    }
 
-    setMessage("Permissions saved.");
-    setSaving(false);
+      const rows = SECTIONS.map((section) => {
+        const permission = permissionFor(section.key);
+
+        return {
+          user_id: selectedUser,
+          section_key: section.key,
+          can_view: permission.can_view,
+          can_edit: permission.can_edit,
+        };
+      });
+
+      const { error } = await supabase
+        .from("user_section_permissions")
+        .upsert(rows, {
+          onConflict: "user_id,section_key",
+        });
+
+      if (error) {
+        setMessage(`Could not save permissions: ${error.message}`);
+        return;
+      }
+
+      setMessage("Permissions saved successfully.");
+    } catch {
+      setMessage("Something went wrong while saving permissions. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
+
 
   if (loading) {
     return <main className="p-6">Loading users…</main>;
