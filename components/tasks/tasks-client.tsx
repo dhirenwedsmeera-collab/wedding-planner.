@@ -659,7 +659,7 @@ function TaskDetailDialog({
           </div>
           <div><label className="mb-1 block text-xs font-medium">Due date</label><input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={!canEdit} /></div>
           <div><label className="mb-1 block text-xs font-medium">Event</label><select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)} disabled={!canEdit}><option value="">No event</option>{/* events are managed in the Events tab */}</select></div>
-          <div><label className="mb-1 block text-xs font-medium">Assigned to</label><div className="flex flex-wrap gap-2">{(task.assignees ?? []).map((a) => <Badge key={a.id} variant="secondary">{a.full_name}</Badge>)}</div><p className="text-[10px] text-muted-foreground">Assignment changes can be managed when creating a task.</p></div>
+          <div><label className="mb-1 block text-xs font-medium">Assigned to</label><div className="flex flex-wrap gap-2">{(task.assignees ?? []).map((a) => <Badge key={a.id} variant="outline">{a.full_name}</Badge>)}</div><p className="text-[10px] text-muted-foreground">Assignment changes can be managed when creating a task.</p></div>
           <div className="flex gap-2">
             {canEdit && <Button className="flex-1" onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>}
             {isAdmin && <Button variant="destructive" onClick={() => void deleteTask()} disabled={saving}><Trash2 className="mr-1.5 h-4 w-4" /> Delete</Button>}
