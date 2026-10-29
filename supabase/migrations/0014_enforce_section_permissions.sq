@@ -1,17 +1,12 @@
 
 -- 0014_enforce_section_permissions.sql
--- Enforce section-level access for family and volunteers.
--- Admins retain full access through has_section_access().
--- Review on the feature branch before running against any database.
+-- Apply section-level access to the existing application tables.
+-- Review and test before applying to production.
 
 BEGIN;
 
--- ---------------------------------------------------------
 -- BOOKINGS
--- ---------------------------------------------------------
-
 DROP POLICY IF EXISTS "bookings: read all" ON public.bookings;
-DROP POLICY IF EXISTS "bookings: admin insert" ON public.bookings;
 DROP POLICY IF EXISTS "bookings: admin write" ON public.bookings;
 DROP POLICY IF EXISTS "bookings: admin update" ON public.bookings;
 DROP POLICY IF EXISTS "bookings: admin delete" ON public.bookings;
@@ -20,7 +15,7 @@ CREATE POLICY "bookings: read all"
 ON public.bookings FOR SELECT
 USING (public.has_section_access('bookings', 'view'));
 
-CREATE POLICY "bookings: admin insert"
+CREATE POLICY "bookings: admin write"
 ON public.bookings FOR INSERT
 WITH CHECK (public.has_section_access('bookings', 'edit'));
 
@@ -33,7 +28,7 @@ CREATE POLICY "bookings: admin delete"
 ON public.bookings FOR DELETE
 USING (public.has_section_access('bookings', 'edit'));
 
--- Booking-event links
+-- BOOKING EVENTS
 DROP POLICY IF EXISTS "booking_events: read signed in" ON public.booking_events;
 DROP POLICY IF EXISTS "booking_events: admin insert" ON public.booking_events;
 DROP POLICY IF EXISTS "booking_events: admin delete" ON public.booking_events;
@@ -50,7 +45,7 @@ CREATE POLICY "booking_events: admin delete"
 ON public.booking_events FOR DELETE
 USING (public.has_section_access('bookings', 'edit'));
 
--- Booking lead times
+-- BOOKING LEAD TIMES
 DROP POLICY IF EXISTS "booking lead times: signed-in read" ON public.booking_lead_times;
 DROP POLICY IF EXISTS "booking lead times: admin insert" ON public.booking_lead_times;
 DROP POLICY IF EXISTS "booking lead times: admin update" ON public.booking_lead_times;
@@ -73,12 +68,8 @@ CREATE POLICY "booking lead times: admin delete"
 ON public.booking_lead_times FOR DELETE
 USING (public.has_section_access('bookings', 'edit'));
 
--- ---------------------------------------------------------
--- BUDGET AND EXPENSES
--- ---------------------------------------------------------
-
+-- BUDGET LINES
 DROP POLICY IF EXISTS "budget: read all" ON public.budget_lines;
-DROP POLICY IF EXISTS "budget: admin insert" ON public.budget_lines;
 DROP POLICY IF EXISTS "budget: admin write" ON public.budget_lines;
 DROP POLICY IF EXISTS "budget: admin update" ON public.budget_lines;
 DROP POLICY IF EXISTS "budget: admin delete" ON public.budget_lines;
@@ -87,7 +78,7 @@ CREATE POLICY "budget: read all"
 ON public.budget_lines FOR SELECT
 USING (public.has_section_access('budget', 'view'));
 
-CREATE POLICY "budget: admin insert"
+CREATE POLICY "budget: admin write"
 ON public.budget_lines FOR INSERT
 WITH CHECK (public.has_section_access('budget', 'edit'));
 
@@ -100,8 +91,8 @@ CREATE POLICY "budget: admin delete"
 ON public.budget_lines FOR DELETE
 USING (public.has_section_access('budget', 'edit'));
 
+-- EXPENSES
 DROP POLICY IF EXISTS "expenses: read all" ON public.expenses;
-DROP POLICY IF EXISTS "expenses: admin insert" ON public.expenses;
 DROP POLICY IF EXISTS "expenses: admin write" ON public.expenses;
 DROP POLICY IF EXISTS "expenses: admin update" ON public.expenses;
 DROP POLICY IF EXISTS "expenses: admin delete" ON public.expenses;
@@ -110,7 +101,7 @@ CREATE POLICY "expenses: read all"
 ON public.expenses FOR SELECT
 USING (public.has_section_access('budget', 'view'));
 
-CREATE POLICY "expenses: admin insert"
+CREATE POLICY "expenses: admin write"
 ON public.expenses FOR INSERT
 WITH CHECK (public.has_section_access('budget', 'edit'));
 
@@ -123,7 +114,7 @@ CREATE POLICY "expenses: admin delete"
 ON public.expenses FOR DELETE
 USING (public.has_section_access('budget', 'edit'));
 
--- Overall budget policies: names must be verified against pg_policies.
+-- OVERALL BUDGET LINES
 DROP POLICY IF EXISTS "overall budget: read signed in" ON public.overall_budget_lines;
 DROP POLICY IF EXISTS "overall budget: admin insert" ON public.overall_budget_lines;
 DROP POLICY IF EXISTS "overall budget: admin update" ON public.overall_budget_lines;
@@ -146,12 +137,8 @@ CREATE POLICY "overall budget: admin delete"
 ON public.overall_budget_lines FOR DELETE
 USING (public.has_section_access('budget', 'edit'));
 
--- ---------------------------------------------------------
--- EVENTS AND CUSTOM EVENT SECTIONS
--- ---------------------------------------------------------
-
+-- EVENTS
 DROP POLICY IF EXISTS "events: read all" ON public.events;
-DROP POLICY IF EXISTS "events: admin insert" ON public.events;
 DROP POLICY IF EXISTS "events: admin write" ON public.events;
 DROP POLICY IF EXISTS "events: admin update" ON public.events;
 DROP POLICY IF EXISTS "events: admin delete" ON public.events;
@@ -160,7 +147,7 @@ CREATE POLICY "events: read all"
 ON public.events FOR SELECT
 USING (public.has_section_access('events', 'view'));
 
-CREATE POLICY "events: admin insert"
+CREATE POLICY "events: admin write"
 ON public.events FOR INSERT
 WITH CHECK (public.has_section_access('events', 'edit'));
 
@@ -173,6 +160,7 @@ CREATE POLICY "events: admin delete"
 ON public.events FOR DELETE
 USING (public.has_section_access('events', 'edit'));
 
+-- EVENT SECTIONS
 DROP POLICY IF EXISTS "event_sections: read all" ON public.event_sections;
 DROP POLICY IF EXISTS "event_sections: admin insert" ON public.event_sections;
 DROP POLICY IF EXISTS "event_sections: admin update" ON public.event_sections;
@@ -195,6 +183,7 @@ CREATE POLICY "event_sections: admin delete"
 ON public.event_sections FOR DELETE
 USING (public.has_section_access('events', 'edit'));
 
+-- EVENT SECTION ITEMS
 DROP POLICY IF EXISTS "section_items: read all" ON public.event_section_items;
 DROP POLICY IF EXISTS "section_items: insert signed in" ON public.event_section_items;
 DROP POLICY IF EXISTS "section_items: update" ON public.event_section_items;
@@ -217,12 +206,8 @@ CREATE POLICY "section_items: delete"
 ON public.event_section_items FOR DELETE
 USING (public.has_section_access('events', 'edit'));
 
--- ---------------------------------------------------------
 -- VENDORS
--- ---------------------------------------------------------
-
 DROP POLICY IF EXISTS "vendors: read all" ON public.vendors;
-DROP POLICY IF EXISTS "vendors: admin insert" ON public.vendors;
 DROP POLICY IF EXISTS "vendors: admin write" ON public.vendors;
 DROP POLICY IF EXISTS "vendors: admin update" ON public.vendors;
 DROP POLICY IF EXISTS "vendors: admin delete" ON public.vendors;
@@ -231,7 +216,7 @@ CREATE POLICY "vendors: read all"
 ON public.vendors FOR SELECT
 USING (public.has_section_access('vendors', 'view'));
 
-CREATE POLICY "vendors: admin insert"
+CREATE POLICY "vendors: admin write"
 ON public.vendors FOR INSERT
 WITH CHECK (public.has_section_access('vendors', 'edit'));
 
@@ -244,10 +229,7 @@ CREATE POLICY "vendors: admin delete"
 ON public.vendors FOR DELETE
 USING (public.has_section_access('vendors', 'edit'));
 
--- ---------------------------------------------------------
 -- SHOPPING
--- ---------------------------------------------------------
-
 DROP POLICY IF EXISTS "shopping: read all" ON public.shopping_items;
 DROP POLICY IF EXISTS "shopping: admin insert" ON public.shopping_items;
 DROP POLICY IF EXISTS "shopping: update" ON public.shopping_items;
@@ -270,10 +252,7 @@ CREATE POLICY "shopping: admin delete"
 ON public.shopping_items FOR DELETE
 USING (public.has_section_access('shopping', 'edit'));
 
--- ---------------------------------------------------------
--- TASKS AND RELATED TABLES
--- ---------------------------------------------------------
-
+-- TASKS
 DROP POLICY IF EXISTS "tasks: read all" ON public.tasks;
 DROP POLICY IF EXISTS "tasks: admin insert" ON public.tasks;
 DROP POLICY IF EXISTS "tasks: update" ON public.tasks;
@@ -296,6 +275,7 @@ CREATE POLICY "tasks: admin delete"
 ON public.tasks FOR DELETE
 USING (public.has_section_access('tasks', 'edit'));
 
+-- TASK ASSIGNEES
 DROP POLICY IF EXISTS "task_assignees: read all" ON public.task_assignees;
 DROP POLICY IF EXISTS "task_assignees: admin write" ON public.task_assignees;
 DROP POLICY IF EXISTS "task_assignees: admin delete" ON public.task_assignees;
@@ -312,6 +292,7 @@ CREATE POLICY "task_assignees: admin delete"
 ON public.task_assignees FOR DELETE
 USING (public.has_section_access('tasks', 'edit'));
 
+-- TASK CHECKLIST
 DROP POLICY IF EXISTS "checklist: read all" ON public.task_checklist_items;
 DROP POLICY IF EXISTS "checklist: write" ON public.task_checklist_items;
 DROP POLICY IF EXISTS "checklist: update" ON public.task_checklist_items;
@@ -334,11 +315,10 @@ CREATE POLICY "checklist: delete"
 ON public.task_checklist_items FOR DELETE
 USING (public.has_section_access('tasks', 'edit'));
 
--- Task comments
+-- TASK COMMENTS
 DROP POLICY IF EXISTS "comments: read all" ON public.task_comments;
 DROP POLICY IF EXISTS "comments: insert own" ON public.task_comments;
 DROP POLICY IF EXISTS "comments: delete own or admin" ON public.task_comments;
-DROP POLICY IF EXISTS "comments: update own or admin" ON public.task_comments;
 
 CREATE POLICY "comments: read all"
 ON public.task_comments FOR SELECT
@@ -351,17 +331,6 @@ WITH CHECK (
   AND public.has_section_access('tasks', 'edit')
 );
 
-CREATE POLICY "comments: update own or admin"
-ON public.task_comments FOR UPDATE
-USING (
-  (auth.uid() = author_id OR public.is_admin())
-  AND public.has_section_access('tasks', 'edit')
-)
-WITH CHECK (
-  (auth.uid() = author_id OR public.is_admin())
-  AND public.has_section_access('tasks', 'edit')
-);
-
 CREATE POLICY "comments: delete own or admin"
 ON public.task_comments FOR DELETE
 USING (
@@ -369,10 +338,7 @@ USING (
   AND public.has_section_access('tasks', 'edit')
 );
 
--- ---------------------------------------------------------
--- NOTES AND DECISIONS
--- ---------------------------------------------------------
-
+-- NOTES
 DROP POLICY IF EXISTS "notes: read all" ON public.notes;
 DROP POLICY IF EXISTS "notes: insert" ON public.notes;
 DROP POLICY IF EXISTS "notes: update" ON public.notes;
@@ -404,7 +370,7 @@ USING (
   AND public.has_section_access('notes', 'edit')
 );
 
--- Decision policy names need verification against pg_policies.
+-- KEY DECISIONS
 DROP POLICY IF EXISTS "key_decisions: read all" ON public.key_decisions;
 DROP POLICY IF EXISTS "key_decisions: admin insert" ON public.key_decisions;
 DROP POLICY IF EXISTS "key_decisions: admin update" ON public.key_decisions;
@@ -427,15 +393,10 @@ CREATE POLICY "key_decisions: admin delete"
 ON public.key_decisions FOR DELETE
 USING (public.has_section_access('decisions', 'edit'));
 
--- ---------------------------------------------------------
--- FILE METADATA
--- Storage object policies are separate and not changed here.
--- ---------------------------------------------------------
-
+-- EVENT FILE METADATA
 DROP POLICY IF EXISTS "files: read all" ON public.event_files;
 DROP POLICY IF EXISTS "files: insert" ON public.event_files;
 DROP POLICY IF EXISTS "files: delete own or admin" ON public.event_files;
-DROP POLICY IF EXISTS "files: update own or admin" ON public.event_files;
 
 CREATE POLICY "files: read all"
 ON public.event_files FOR SELECT
@@ -444,17 +405,6 @@ USING (public.has_section_access('files', 'view'));
 CREATE POLICY "files: insert"
 ON public.event_files FOR INSERT
 WITH CHECK (public.has_section_access('files', 'edit'));
-
-CREATE POLICY "files: update own or admin"
-ON public.event_files FOR UPDATE
-USING (
-  (uploaded_by = auth.uid() OR public.is_admin())
-  AND public.has_section_access('files', 'edit')
-)
-WITH CHECK (
-  (uploaded_by = auth.uid() OR public.is_admin())
-  AND public.has_section_access('files', 'edit')
-);
 
 CREATE POLICY "files: delete own or admin"
 ON public.event_files FOR DELETE
