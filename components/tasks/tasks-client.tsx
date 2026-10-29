@@ -2,20 +2,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, type DragEndEvent,
-} from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { motion } from "framer-motion";
-import { LayoutGrid, Table2, Plus, Calendar as CalendarIcon, Trash2, Upload } from "lucide-react";
+import { Table2, Plus, Calendar as CalendarIcon, Trash2, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, TaskPriority, WeddingEvent, Profile } from "@/types/domain";
-import { getTaskUrgency, URGENCY_STYLES, formatDate, initials } from "@/lib/utils";
+import { getTaskUrgency, URGENCY_STYLES, formatDate } from "@/lib/utils";
 import { fireConfetti } from "@/lib/confetti";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskCalendar } from "@/components/tasks/task-calendar";
@@ -29,51 +23,76 @@ const STATUS_COLUMNS: { id: TaskStatus; label: string }[] = [
 ];
 
 const PRIORITY_COLOR: Record<TaskPriority, "red" | "orange" | "yellow" | "green"> = {
-  critical: "red", high: "orange", medium: "yellow", low: "green",
+  critical: "red",
+  high: "orange",
+  medium: "yellow",
+  low: "green",
 };
 
 export function TasksClient({
-  initialTasks, events, profiles, currentUser,
-}: { initialTasks: Task[]; events: WeddingEvent[]; profiles: Profile[]; currentUser: Profile | null }) {
+  initialTasks,
+  events,
+  profiles,
+  currentUser,
+}: {
+  initialTasks: Task[];
+  events: WeddingEvent[];
+  profiles: Profile[];
+  currentUser: Profile | null;
+}) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [view, setView] = useState<"kanban" | "table" | "calendar">("kanban");
+  const [view, setView] = useState<"table" | "calendar">("table");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [completedOpen, setCompletedOpen] = useState(false);
+
   const supabase = createClient();
   const isAdmin = currentUser?.role === "admin";
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
   const visibleTasks = useMemo(
-    () => (eventFilter === "all" ? tasks : tasks.filter((t) => t.event_id === eventFilter)),
+    () =>
+      eventFilter === "all"
+        ? tasks
+        : tasks.filter((t) => t.event_id === eventFilter),
     [tasks, eventFilter]
   );
 
-const activeTasks = useMemo(
-  () =>
-    visibleTasks.filter(
-      (t) => String(t.status).toLowerCase() !== "completed"
-    ),
-  [visibleTasks]
-);
+  const priorityFilteredTasks = useMemo(
+    () =>
+      priorityFilter === "all"
+        ? visibleTasks
+        : visibleTasks.filter((t) => t.priority === priorityFilter),
+    [visibleTasks, priorityFilter]
+  );
 
-const completedTasks = useMemo(
-  () =>
-    visibleTasks.filter(
-      (t) => String(t.status).toLowerCase() === "completed"
-    ),
-  [visibleTasks]
-);
+  const activeTasks = useMemo(
+    () =>
+      priorityFilteredTasks.filter(
+        (t) => String(t.status).toLowerCase() !== "completed"
+      ),
+    [priorityFilteredTasks]
+  );
+
+  const completedTasks = useMemo(
+    () =>
+      priorityFilteredTasks.filter(
+        (t) => String(t.status).toLowerCase() === "completed"
+      ),
+    [priorityFilteredTasks]
+  );
 
   function canEdit(t: Task) {
     return isAdmin || (t.assignees ?? []).some((a) => a.id === currentUser?.id);
   }
 
   function updateTask(updatedTask: Task) {
-    setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
-    setSelectedTask((prev) => (prev?.id === updatedTask.id ? updatedTask : prev));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+    );
+    setSelectedTask((prev) =>
+      prev?.id === updatedTask.id ? updatedTask : prev
+    );
   }
 
   function removeTask(taskId: string) {
@@ -98,7 +117,9 @@ const completedTasks = useMemo(
 
     if (error) {
       setTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, status: previousStatus } : t))
+        prev.map((t) =>
+          t.id === id ? { ...t, status: previousStatus } : t
+        )
       );
       alert("Couldn't update the task status. Please try again.");
       return;
@@ -110,73 +131,92 @@ const completedTasks = useMemo(
     }
   }
 
-  function handleDragEnd(e: DragEndEvent) {
-    setActiveId(null);
-    const { active, over } = e;
-    if (!over) return;
-    const newStatus = over.id as TaskStatus;
-    if (STATUS_COLUMNS.some((c) => c.id === newStatus)) {
-      void moveTask(active.id as string, newStatus);
-    }
-  }
-
-  const activeTask = tasks.find((t) => t.id === activeId);
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-xl border border-border p-1">
-          <button onClick={() => setView("kanban")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "kanban" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
-            <LayoutGrid className="h-3.5 w-3.5" /> Kanban
-          </button>
-          <button onClick={() => setView("table")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "table" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
+          <button
+            onClick={() => setView("table")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+              view === "table"
+                ? "bg-emerald-700 text-white"
+                : "text-muted-foreground"
+            }`}
+          >
             <Table2 className="h-3.5 w-3.5" /> Table
           </button>
-          <button onClick={() => setView("calendar")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "calendar" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
+
+          <button
+            onClick={() => setView("calendar")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+              view === "calendar"
+                ? "bg-emerald-700 text-white"
+                : "text-muted-foreground"
+            }`}
+          >
             <CalendarIcon className="h-3.5 w-3.5" /> Calendar
           </button>
         </div>
 
-        <select value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="input w-auto py-1.5 text-xs">
+        <select
+          value={eventFilter}
+          onChange={(e) => setEventFilter(e.target.value)}
+          className="input w-auto py-1.5 text-xs"
+          aria-label="Filter tasks by event"
+        >
           <option value="all">All events</option>
-          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          {events.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={priorityFilter}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          className="input w-auto py-1.5 text-xs"
+          aria-label="Filter tasks by priority"
+        >
+          <option value="all">All priorities</option>
+          <option value="critical">Critical priority</option>
+          <option value="high">High priority</option>
+          <option value="medium">Medium priority</option>
+          <option value="low">Low priority</option>
         </select>
 
         {isAdmin && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <ImportTasksDialog events={events} existingTasks={tasks} onImported={(created) => setTasks((prev) => [...created, ...prev])} />
-            <CreateTaskDialog events={events} profiles={profiles} onCreated={(t) => setTasks((prev) => [t, ...prev])} />
+            <ImportTasksDialog
+              events={events}
+              existingTasks={tasks}
+              onImported={(created) =>
+                setTasks((prev) => [...created, ...prev])
+              }
+            />
+            <CreateTaskDialog
+              events={events}
+              profiles={profiles}
+              onCreated={(t) => setTasks((prev) => [t, ...prev])}
+            />
           </div>
         )}
       </div>
 
-      {view === "kanban" ? (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={(e) => setActiveId(e.active.id as string)}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-4">
-            {STATUS_COLUMNS.filter((col) => col.id !== "completed").map((col) => (
-              <KanbanColumn
-                key={col.id}
-                id={col.id}
-                label={col.label}
-                tasks={activeTasks.filter((t) => t.status === col.id)}
-                canEditTask={canEdit}
-                isAdmin={isAdmin}
-                onUpdated={updateTask}
-                onDeleted={removeTask}
-              />
-            ))}
-          </div>
-          <DragOverlay>{activeTask && <TaskCard task={activeTask} draggable={false} canEdit={canEdit(activeTask)} isAdmin={isAdmin} onUpdated={updateTask} onDeleted={removeTask} />}</DragOverlay>
-        </DndContext>
-      ) : view === "table" ? (
-        <TaskTable tasks={activeTasks} onStatusChange={moveTask} canEdit={canEdit} isAdmin={isAdmin} onUpdated={updateTask} onDeleted={removeTask} />
+      {view === "table" ? (
+        <TaskTable
+          tasks={activeTasks}
+          onStatusChange={moveTask}
+          canEdit={canEdit}
+          isAdmin={isAdmin}
+          onUpdated={updateTask}
+          onDeleted={removeTask}
+        />
       ) : (
-        <TaskCalendar tasks={activeTasks} onSelectTask={setSelectedTask} />
+        <TaskCalendar
+          tasks={activeTasks}
+          onSelectTask={setSelectedTask}
+        />
       )}
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -189,12 +229,15 @@ const completedTasks = useMemo(
           <div>
             <p className="text-sm font-semibold">Completed</p>
             <p className="text-xs text-muted-foreground">
-              {completedTasks.length} {completedTasks.length === 1 ? "task" : "tasks"} finished
+              {completedTasks.length}{" "}
+              {completedTasks.length === 1 ? "task" : "tasks"} finished
             </p>
           </div>
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             {completedOpen ? "Hide" : "Show"}
-            <span aria-hidden="true">{completedOpen ? "▲" : "▼"}</span>
+            <span aria-hidden="true">
+              {completedOpen ? "▲" : "▼"}
+            </span>
           </span>
         </button>
 
@@ -213,18 +256,28 @@ const completedTasks = useMemo(
                   <div className="min-w-0 flex-1">
                     <TaskDetailDialog
                       task={task}
+                      events={events}
+                      profiles={profiles}
                       canEdit={canEdit(task)}
                       isAdmin={isAdmin}
                       onUpdated={updateTask}
                       onDeleted={removeTask}
                     >
-                      <span className="cursor-pointer text-sm font-medium hover:underline">{task.name}</span>
+                      <span className="cursor-pointer text-sm font-medium hover:underline">
+                        {task.name}
+                      </span>
                     </TaskDetailDialog>
+
                     {task.category && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{task.category}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {task.category}
+                      </p>
                     )}
+
                     {task.due_date && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">Due {formatDate(task.due_date)}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Due {formatDate(task.due_date)}
+                      </p>
                     )}
                   </div>
 
@@ -234,7 +287,9 @@ const completedTasks = useMemo(
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => void moveTask(task.id, "not_started")}
+                        onClick={() =>
+                          void moveTask(task.id, "not_started")
+                        }
                       >
                         Reopen
                       </Button>
@@ -250,6 +305,8 @@ const completedTasks = useMemo(
       {selectedTask && (
         <TaskDetailDialog
           task={selectedTask}
+          events={events}
+          profiles={profiles}
           canEdit={canEdit(selectedTask)}
           isAdmin={isAdmin}
           onUpdated={updateTask}
@@ -264,108 +321,15 @@ const completedTasks = useMemo(
   );
 }
 
-function KanbanColumn({
-  id, label, tasks, canEditTask, isAdmin, onUpdated, onDeleted,
-}: {
-  id: TaskStatus;
-  label: string;
-  tasks: Task[];
-  canEditTask: (t: Task) => boolean;
-  isAdmin: boolean;
-  onUpdated: (task: Task) => void;
-  onDeleted: (taskId: string) => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex min-h-[200px] w-[82vw] shrink-0 snap-center flex-col gap-2 rounded-2xl border border-dashed p-3 transition-colors sm:w-auto sm:shrink ${isOver ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-border"}`}
-    >
-      <div className="mb-1 flex items-center justify-between px-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{tasks.length}</span>
-      </div>
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        {tasks.map((t) => (
-          <SortableTaskCard
-            key={t.id}
-            task={t}
-            canEdit={canEditTask(t)}
-            isAdmin={isAdmin}
-            onUpdated={onUpdated}
-            onDeleted={onDeleted}
-          />
-        ))}
-      </SortableContext>
-    </div>
-  );
-}
-
-function SortableTaskCard({
-  task, canEdit, isAdmin, onUpdated, onDeleted,
-}: {
-  task: Task;
-  canEdit: boolean;
-  isAdmin: boolean;
-  onUpdated: (task: Task) => void;
-  onDeleted: (taskId: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id, disabled: !canEdit });
-  return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}>
-      <TaskCard task={task} canEdit={canEdit} isAdmin={isAdmin} onUpdated={onUpdated} onDeleted={onDeleted} />
-    </div>
-  );
-}
-
-function TaskCard({
-  task, draggable = true, canEdit, isAdmin = false, onUpdated, onDeleted,
-}: {
-  task: Task;
-  draggable?: boolean;
-  canEdit: boolean;
-  isAdmin?: boolean;
-  onUpdated?: (task: Task) => void;
-  onDeleted?: (taskId: string) => void;
-}) {
-  const urgency = getTaskUrgency(task.due_date, task.status);
-  const style = URGENCY_STYLES[urgency];
-  return (
-    <TaskDetailDialog
-      task={task}
-      canEdit={canEdit}
-      isAdmin={isAdmin}
-      onUpdated={onUpdated}
-      onDeleted={onDeleted}
-    >
-      <motion.div layout={draggable} whileHover={{ y: -2 }} className={`cursor-pointer rounded-xl border bg-card p-3 shadow-soft ${style.border} ${!canEdit ? "opacity-80" : ""}`}>
-        <div className="mb-2 flex items-center justify-between">
-          <Badge variant={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
-          {task.due_date && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <CalendarIcon className="h-3 w-3" /> {formatDate(task.due_date)}
-            </span>
-          )}
-        </div>
-        <p className="text-sm font-medium leading-snug">{task.name}</p>
-        {task.category && <p className="mt-0.5 text-[11px] text-muted-foreground">{task.category}</p>}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex -space-x-1.5">
-            {(task.assignees ?? []).slice(0, 3).map((a) => (
-              <div key={a.id} title={a.full_name} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-emerald-gold text-[9px] font-semibold text-white">
-                {initials(a.full_name)}
-              </div>
-            ))}
-          </div>
-          {urgency !== "can_wait" && <Badge variant={urgency === "overdue" || urgency === "critical" ? "red" : urgency === "urgent" ? "orange" : "yellow"}>{style.label}</Badge>}
-        </div>
-      </motion.div>
-    </TaskDetailDialog>
-  );
-}
-
 function TaskTable({
-  tasks, onStatusChange, canEdit, isAdmin, onUpdated, onDeleted,
+  tasks,
+  onStatusChange,
+  canEdit,
+  isAdmin,
+  onUpdated,
+  onDeleted,
+  events,
+  profiles,
 }: {
   tasks: Task[];
   onStatusChange: (id: string, s: TaskStatus) => void;
@@ -373,6 +337,8 @@ function TaskTable({
   isAdmin: boolean;
   onUpdated: (task: Task) => void;
   onDeleted: (taskId: string) => void;
+  events: WeddingEvent[];
+  profiles: Profile[];
 }) {
   return (
     <Card className="overflow-x-auto">
@@ -392,34 +358,84 @@ function TaskTable({
             const urgency = getTaskUrgency(t.due_date, t.status);
             const style = URGENCY_STYLES[urgency];
             const editable = canEdit(t);
+
             return (
-              <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/50">
+              <tr
+                key={t.id}
+                className="border-b border-border last:border-0 hover:bg-muted/50"
+              >
                 <td className="px-4 py-3">
-                  <TaskDetailDialog task={t} canEdit={editable} isAdmin={isAdmin} onUpdated={onUpdated} onDeleted={onDeleted}>
-                    <span className="cursor-pointer font-medium hover:underline">{t.name}</span>
+                  <TaskDetailDialog
+                    task={t}
+                    events={events}
+                    profiles={profiles}
+                    canEdit={editable}
+                    isAdmin={isAdmin}
+                    onUpdated={onUpdated}
+                    onDeleted={onDeleted}
+                  >
+                    <span className="cursor-pointer font-medium hover:underline">
+                      {t.name}
+                    </span>
                   </TaskDetailDialog>
                 </td>
-                <td className="px-4 py-3"><Badge variant={PRIORITY_COLOR[t.priority]}>{t.priority}</Badge></td>
+                <td className="px-4 py-3">
+                  <Badge variant={PRIORITY_COLOR[t.priority]}>
+                    {t.priority}
+                  </Badge>
+                </td>
                 <td className="px-4 py-3">
                   <select
                     value={t.status}
                     disabled={!editable}
-                    onChange={(e) => onStatusChange(t.id, e.target.value as TaskStatus)}
+                    onChange={(e) =>
+                      onStatusChange(t.id, e.target.value as TaskStatus)
+                    }
                     className="input w-auto py-1 text-xs"
                   >
-                    {STATUS_COLUMNS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    {STATUS_COLUMNS.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
                   </select>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{t.due_date ? formatDate(t.due_date) : "—"}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{(t.assignees ?? []).map((a) => a.full_name).join(", ") || "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {t.due_date ? formatDate(t.due_date) : "—"}
+                </td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {(t.assignees ?? []).map((a) => a.full_name).join(", ") || "—"}
+                </td>
                 <td className="px-4 py-3">
-                  {urgency !== "can_wait" ? <Badge variant={urgency === "overdue" || urgency === "critical" ? "red" : urgency === "urgent" ? "orange" : "yellow"}>{style.label}</Badge> : <span className="text-muted-foreground">—</span>}
+                  {urgency !== "can_wait" ? (
+                    <Badge
+                      variant={
+                        urgency === "overdue" || urgency === "critical"
+                          ? "red"
+                          : urgency === "urgent"
+                            ? "orange"
+                            : "yellow"
+                      }
+                    >
+                      {style.label}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </td>
               </tr>
             );
           })}
+
           {tasks.length === 0 && (
-            <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">No tasks found.</td></tr>
+            <tr>
+              <td
+                colSpan={6}
+                className="px-4 py-10 text-center text-sm text-muted-foreground"
+              >
+                No tasks found for these filters.
+              </td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -428,8 +444,14 @@ function TaskTable({
 }
 
 function CreateTaskDialog({
-  events, profiles, onCreated,
-}: { events: WeddingEvent[]; profiles: Profile[]; onCreated: (task: Task) => void }) {
+  events,
+  profiles,
+  onCreated,
+}: {
+  events: WeddingEvent[];
+  profiles: Profile[];
+  onCreated: (task: Task) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -445,16 +467,21 @@ function CreateTaskDialog({
   async function submit() {
     if (!name.trim() || saving) return;
     setSaving(true);
-    const { data, error } = await supabase.from("tasks").insert({
-      name: name.trim(),
-      description: description.trim() || null,
-      category: category.trim() || null,
-      priority,
-      status,
-      due_date: dueDate || null,
-      event_id: eventId || null,
-      assigned_to: assigneeIds[0] || null,
-    }).select("*").single();
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        name: name.trim(),
+        description: description.trim() || null,
+        category: category.trim() || null,
+        priority,
+        status,
+        due_date: dueDate || null,
+        event_id: eventId || null,
+        assigned_to: assigneeIds[0] || null,
+      })
+      .select("*")
+      .single();
 
     if (error || !data) {
       alert(error?.message ?? "Could not create task.");
@@ -462,8 +489,12 @@ function CreateTaskDialog({
       return;
     }
 
-    const assignees = profiles.filter((p) => assigneeIds.includes(p.id)).map((p) => ({ id: p.id, full_name: p.full_name }));
+    const assignees = profiles
+      .filter((p) => assigneeIds.includes(p.id))
+      .map((p) => ({ id: p.id, full_name: p.full_name }));
+
     onCreated({ ...data, assignees } as Task);
+
     setName("");
     setDescription("");
     setCategory("");
@@ -479,22 +510,118 @@ function CreateTaskDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button><Plus className="mr-1.5 h-4 w-4" /> Add Task</Button>
+        <Button>
+          <Plus className="mr-1.5 h-4 w-4" /> Add Task
+        </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Create Task</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Create Task</DialogTitle>
+        </DialogHeader>
+
         <div className="space-y-3">
-          <div><label className="mb-1 block text-xs font-medium">Task name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Book photographer" /></div>
-          <div><label className="mb-1 block text-xs font-medium">Description</label><textarea className="input min-h-20" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div><label className="mb-1 block text-xs font-medium">Category</label><input className="input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Ceremony" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="mb-1 block text-xs font-medium">Priority</label><select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>{(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-            <div><label className="mb-1 block text-xs font-medium">Status</label><select className="input" value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)}>{STATUS_COLUMNS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Task name</label>
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Book photographer"
+            />
           </div>
-          <div><label className="mb-1 block text-xs font-medium">Due date</label><input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
-          <div><label className="mb-1 block text-xs font-medium">Event</label><select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">No event</option>{events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
-          <div><label className="mb-1 block text-xs font-medium">Assign to</label><div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2">{profiles.map((p) => <label key={p.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={assigneeIds.includes(p.id)} onChange={(e) => setAssigneeIds((prev) => e.target.checked ? [...prev, p.id] : prev.filter((id) => id !== p.id))} />{p.full_name}</label>)}</div></div>
-          <Button className="w-full" onClick={() => void submit()} disabled={!name.trim() || saving}>{saving ? "Saving..." : "Create Task"}</Button>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Description</label>
+            <textarea
+              className="input min-h-20"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Category</label>
+            <input
+              className="input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. Ceremony"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium">Priority</label>
+              <select
+                className="input"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+              >
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Status</label>
+              <select
+                className="input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+              >
+                {STATUS_COLUMNS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Due date</label>
+            <input
+              className="input"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Event</label>
+            <select
+              className="input"
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+            >
+              <option value="">No event</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Assign to</label>
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+              {profiles.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={assigneeIds.includes(p.id)}
+                    onChange={(e) =>
+                      setAssigneeIds((prev) =>
+                        e.target.checked
+                          ? [...prev, p.id]
+                          : prev.filter((id) => id !== p.id)
+                      )
+                    }
+                  />
+                  {p.full_name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <Button
+            className="w-full"
+            onClick={() => void submit()}
+            disabled={!name.trim() || saving}
+          >
+            {saving ? "Saving..." : "Create Task"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -502,8 +629,14 @@ function CreateTaskDialog({
 }
 
 function ImportTasksDialog({
-  events, existingTasks, onImported,
-}: { events: WeddingEvent[]; existingTasks: Task[]; onImported: (tasks: Task[]) => void }) {
+  events,
+  existingTasks,
+  onImported,
+}: {
+  events: WeddingEvent[];
+  existingTasks: Task[];
+  onImported: (tasks: Task[]) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -515,26 +648,48 @@ function ImportTasksDialog({
     const text = await file.text();
     const lines = text.split(/\r?\n/).filter((line) => line.trim());
     if (!lines.length) return;
+
     const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    setRows(lines.slice(1).map((line) => {
-      const values = line.split(",").map((v) => v.trim());
-      return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ""]));
-    }));
+    setRows(
+      lines.slice(1).map((line) => {
+        const values = line.split(",").map((v) => v.trim());
+        return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ""]));
+      })
+    );
   }
 
   async function importTasks() {
     if (!rows.length || saving) return;
     setSaving(true);
-    const existingNames = new Set(existingTasks.map((t) => t.name.trim().toLowerCase()));
-    const newRows = rows.filter((r) => r.name?.trim() && !existingNames.has(r.name.trim().toLowerCase()));
+
+    const existingNames = new Set(
+      existingTasks.map((t) => t.name.trim().toLowerCase())
+    );
+
+    const newRows = rows.filter(
+      (r) =>
+        r.name?.trim() &&
+        !existingNames.has(r.name.trim().toLowerCase())
+    );
+
     const payload = newRows.map((r) => ({
       name: r.name.trim(),
       description: r.description || null,
       category: r.category || null,
-      priority: (["critical", "high", "medium", "low"].includes(r.priority) ? r.priority : "medium") as TaskPriority,
-      status: (STATUS_COLUMNS.some((s) => s.id === r.status) ? r.status : "not_started") as TaskStatus,
+      priority: (
+        ["critical", "high", "medium", "low"].includes(r.priority)
+          ? r.priority
+          : "medium"
+      ) as TaskPriority,
+      status: (
+        STATUS_COLUMNS.some((s) => s.id === r.status)
+          ? r.status
+          : "not_started"
+      ) as TaskStatus,
       due_date: r.due_date || null,
-      event_id: events.find((e) => e.name.toLowerCase() === r.event?.toLowerCase())?.id ?? null,
+      event_id:
+        events.find((e) => e.name.toLowerCase() === r.event?.toLowerCase())?.id ??
+        null,
       assigned_to: null,
     }));
 
@@ -544,12 +699,17 @@ function ImportTasksDialog({
       return;
     }
 
-    const { data, error } = await supabase.from("tasks").insert(payload).select("*");
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(payload)
+      .select("*");
+
     if (error || !data) {
       alert(error?.message ?? "Could not import tasks.");
       setSaving(false);
       return;
     }
+
     onImported(data as Task[]);
     setRows([]);
     setFileName("");
@@ -560,15 +720,40 @@ function ImportTasksDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline"><Upload className="mr-1.5 h-4 w-4" /> Import CSV</Button>
+        <Button variant="outline">
+          <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+        </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Import Tasks from CSV</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Import Tasks from CSV</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">CSV columns: name, description, category, priority, status, due_date, event. Duplicate task names are skipped.</p>
-          <input type="file" accept=".csv,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) void readFile(f); }} className="input" />
-          {fileName && <p className="text-xs text-muted-foreground">Loaded: {fileName} ({rows.length} rows)</p>}
-          <Button className="w-full" onClick={() => void importTasks()} disabled={!rows.length || saving}>{saving ? "Importing..." : "Import Tasks"}</Button>
+          <p className="text-xs text-muted-foreground">
+            CSV columns: name, description, category, priority, status, due_date,
+            event. Duplicate task names are skipped.
+          </p>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void readFile(f);
+            }}
+            className="input"
+          />
+          {fileName && (
+            <p className="text-xs text-muted-foreground">
+              Loaded: {fileName} ({rows.length} rows)
+            </p>
+          )}
+          <Button
+            className="w-full"
+            onClick={() => void importTasks()}
+            disabled={!rows.length || saving}
+          >
+            {saving ? "Importing..." : "Import Tasks"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -576,9 +761,20 @@ function ImportTasksDialog({
 }
 
 function TaskDetailDialog({
-  task, canEdit, isAdmin, onUpdated, onDeleted, controlledOpen, onOpenChange, children,
+  task,
+  events,
+  profiles,
+  canEdit,
+  isAdmin,
+  onUpdated,
+  onDeleted,
+  controlledOpen,
+  onOpenChange,
+  children,
 }: {
   task: Task;
+  events: WeddingEvent[];
+  profiles: Profile[];
   canEdit: boolean;
   isAdmin: boolean;
   onUpdated?: (task: Task) => void;
@@ -589,10 +785,12 @@ function TaskDetailDialog({
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ? true : internalOpen;
+
   const setOpen = (value: boolean) => {
     if (controlledOpen) onOpenChange?.(value);
     else setInternalOpen(value);
   };
+
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description ?? "");
   const [category, setCategory] = useState(task.category ?? "");
@@ -601,22 +799,31 @@ function TaskDetailDialog({
   const [dueDate, setDueDate] = useState(task.due_date ?? "");
   const [eventId, setEventId] = useState(task.event_id ?? "");
   const [saving, setSaving] = useState(false);
-  const [assigneeIds, setAssigneeIds] = useState<string[]>((task.assignees ?? []).map((a) => a.id));
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    (task.assignees ?? []).map((a) => a.id)
+  );
+
   const supabase = createClient();
 
   async function save() {
     if (!canEdit || saving) return;
     setSaving(true);
-    const { data, error } = await supabase.from("tasks").update({
-      name: name.trim(),
-      description: description.trim() || null,
-      category: category.trim() || null,
-      priority,
-      status,
-      due_date: dueDate || null,
-      event_id: eventId || null,
-      assigned_to: assigneeIds[0] || null,
-    }).eq("id", task.id).select("*").single();
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({
+        name: name.trim(),
+        description: description.trim() || null,
+        category: category.trim() || null,
+        priority,
+        status,
+        due_date: dueDate || null,
+        event_id: eventId || null,
+        assigned_to: assigneeIds[0] || null,
+      })
+      .eq("id", task.id)
+      .select("*")
+      .single();
 
     if (error || !data) {
       alert(error?.message ?? "Could not update task.");
@@ -624,13 +831,17 @@ function TaskDetailDialog({
       return;
     }
 
-    const updated = {
-      ...task,
-      ...data,
-      assignees: task.assignees?.filter((a) => assigneeIds.includes(a.id)) ?? [],
-    } as Task;
+    const assignees = profiles
+      .filter((p) => assigneeIds.includes(p.id))
+      .map((p) => ({ id: p.id, full_name: p.full_name }));
+
+    const updated = { ...task, ...data, assignees } as Task;
     onUpdated?.(updated);
-    if (status === "completed" && task.status !== "completed") fireConfetti();
+
+    if (status === "completed" && task.status !== "completed") {
+      fireConfetti();
+    }
+
     setSaving(false);
     setOpen(false);
   }
@@ -638,13 +849,19 @@ function TaskDetailDialog({
   async function deleteTask() {
     if (!isAdmin || saving) return;
     if (!confirm(`Delete "${task.name}"? This cannot be undone.`)) return;
+
     setSaving(true);
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", task.id);
+
     if (error) {
       alert(error.message);
       setSaving(false);
       return;
     }
+
     onDeleted?.(task.id);
     setSaving(false);
     setOpen(false);
@@ -654,22 +871,140 @@ function TaskDetailDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{task.name}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{task.name}</DialogTitle>
+        </DialogHeader>
+
         <div className="space-y-3">
-          <div><label className="mb-1 block text-xs font-medium">Task name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} /></div>
-          <div><label className="mb-1 block text-xs font-medium">Description</label><textarea className="input min-h-20" value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit} /></div>
-          <div><label className="mb-1 block text-xs font-medium">Category</label><input className="input" value={category} onChange={(e) => setCategory(e.target.value)} disabled={!canEdit} /></div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Task name</label>
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Description</label>
+            <textarea
+              className="input min-h-20"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Category</label>
+            <input
+              className="input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="mb-1 block text-xs font-medium">Priority</label><select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)} disabled={!canEdit}>{(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => <option key={p} value={p}>{p}</option>)}</select></div>
-            <div><label className="mb-1 block text-xs font-medium">Status</label><select className="input" value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)} disabled={!canEdit}>{STATUS_COLUMNS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Priority</label>
+              <select
+                className="input"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                disabled={!canEdit}
+              >
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Status</label>
+              <select
+                className="input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                disabled={!canEdit}
+              >
+                {STATUS_COLUMNS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div><label className="mb-1 block text-xs font-medium">Due date</label><input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={!canEdit} /></div>
-          <div><label className="mb-1 block text-xs font-medium">Event</label><select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)} disabled={!canEdit}><option value="">No event</option>{/* events are managed in the Events tab */}</select></div>
-          <div><label className="mb-1 block text-xs font-medium">Assigned to</label><div className="flex flex-wrap gap-2">{(task.assignees ?? []).map((a) => <Badge key={a.id} variant="outline">{a.full_name}</Badge>)}</div><p className="text-[10px] text-muted-foreground">Assignment changes can be managed when creating a task.</p></div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Due date</label>
+            <input
+              className="input"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Event</label>
+            <select
+              className="input"
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+              disabled={!canEdit}
+            >
+              <option value="">No event</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Assigned to</label>
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+              {profiles.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={assigneeIds.includes(p.id)}
+                    disabled={!canEdit}
+                    onChange={(e) =>
+                      setAssigneeIds((prev) =>
+                        e.target.checked
+                          ? [...prev, p.id]
+                          : prev.filter((id) => id !== p.id)
+                      )
+                    }
+                  />
+                  {p.full_name}
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2">
-            {canEdit && <Button className="flex-1" onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>}
-            {isAdmin && <Button variant="destructive" onClick={() => void deleteTask()} disabled={saving}><Trash2 className="mr-1.5 h-4 w-4" /> Delete</Button>}
+            {canEdit && (
+              <Button
+                className="flex-1"
+                onClick={() => void save()}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                onClick={() => void deleteTask()}
+                disabled={saving}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+              </Button>
+            )}
           </div>
+
           <TaskComments taskId={task.id} />
         </div>
       </DialogContent>
