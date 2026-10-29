@@ -158,32 +158,6 @@ export function TasksClient({
           </button>
         </div>
 
-        <select
-          value={eventFilter}
-          onChange={(e) => setEventFilter(e.target.value)}
-          className="input w-auto py-1.5 text-xs"
-          aria-label="Filter tasks by event"
-        >
-          <option value="all">All events</option>
-          {events.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          className="input w-auto py-1.5 text-xs"
-          aria-label="Filter tasks by priority"
-        >
-          <option value="all">All priorities</option>
-          <option value="critical">Critical priority</option>
-          <option value="high">High priority</option>
-          <option value="medium">Medium priority</option>
-          <option value="low">Low priority</option>
-        </select>
 
         {isAdmin && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -213,6 +187,10 @@ export function TasksClient({
   onDeleted={removeTask}
   events={events}
   profiles={profiles}
+  eventFilter={eventFilter}
+  onEventFilterChange={setEventFilter}
+  priorityFilter={priorityFilter}
+  onPriorityFilterChange={setPriorityFilter}
 />
       ) : (
         <TaskCalendar
@@ -332,6 +310,10 @@ function TaskTable({
   onDeleted,
   events,
   profiles,
+  eventFilter,
+  onEventFilterChange,
+  priorityFilter,
+  onPriorityFilterChange,
 }: {
   tasks: Task[];
   onStatusChange: (id: string, s: TaskStatus) => void;
@@ -341,14 +323,51 @@ function TaskTable({
   onDeleted: (taskId: string) => void;
   events: WeddingEvent[];
   profiles: Profile[];
+  eventFilter: string;
+  onEventFilterChange: (value: string) => void;
+  priorityFilter: string;
+  onPriorityFilterChange: (value: string) => void;
 }) {
   return (
     <Card className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <th className="px-4 py-3">Task</th>
-            <th className="px-4 py-3">Priority</th>
+            <th className="px-4 py-3 align-top">
+              <div className="space-y-2">
+                <span>Task / Event</span>
+                <select
+                  value={eventFilter}
+                  onChange={(e) => onEventFilterChange(e.target.value)}
+                  className="input w-full min-w-32 py-1 text-xs font-normal normal-case tracking-normal"
+                  aria-label="Filter tasks by event"
+                >
+                  <option value="all">All events</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </th>
+            <th className="px-4 py-3 align-top">
+              <div className="space-y-2">
+                <span>Priority</span>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => onPriorityFilterChange(e.target.value)}
+                  className="input w-full min-w-32 py-1 text-xs font-normal normal-case tracking-normal"
+                  aria-label="Filter tasks by priority"
+                >
+                  <option value="all">All priorities</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Due</th>
             <th className="px-4 py-3">Assigned</th>
