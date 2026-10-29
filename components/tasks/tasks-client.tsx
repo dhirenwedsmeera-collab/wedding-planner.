@@ -499,7 +499,6 @@ function CreateTaskDialog({
         status,
         due_date: dueDate || null,
         event_id: eventId || null,
-        assigned_to: assigneeIds[0] || null,
       })
       .select("*")
       .single();
@@ -508,6 +507,19 @@ function CreateTaskDialog({
       alert(error?.message ?? "Could not create task.");
       setSaving(false);
       return;
+    }
+
+    if (assigneeIds.length) {
+      const { error: assigneeError } = await supabase
+        .from("task_assignees")
+        .insert(assigneeIds.map((user_id) => ({ task_id: data.id, user_id })));
+
+      if (assigneeError) {
+        await supabase.from("tasks").delete().eq("id", data.id);
+        alert(`Task assignments could not be saved: ${assigneeError.message}`);
+        setSaving(false);
+        return;
+      }
     }
 
     const assignees = profiles
@@ -711,7 +723,6 @@ function ImportTasksDialog({
       event_id:
         events.find((e) => e.name.toLowerCase() === r.event?.toLowerCase())?.id ??
         null,
-      assigned_to: null,
     }));
 
     if (!payload.length) {
@@ -840,7 +851,6 @@ function TaskDetailDialog({
         status,
         due_date: dueDate || null,
         event_id: eventId || null,
-        assigned_to: assigneeIds[0] || null,
       })
       .eq("id", task.id)
       .select("*")
@@ -850,6 +860,29 @@ function TaskDetailDialog({
       alert(error?.message ?? "Could not update task.");
       setSaving(false);
       return;
+    }
+
+    const { error: clearAssigneesError } = await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", task.id);
+
+    if (clearAssigneesError) {
+      alert(`Task details saved, but assignments could not be updated: ${clearAssigneesError.message}`);
+      setSaving(false);
+      return;
+    }
+
+    if (assigneeIds.length) {
+      const { error: assigneeError } = await supabase
+        .from("task_assignees")
+        .insert(assigneeIds.map((user_id) => ({ task_id: task.id, user_id })));
+
+      if (assigneeError) {
+        alert(`Task details saved, but assignments could not be updated: ${assigneeError.message}`);
+        setSaving(false);
+        return;
+      }
     }
 
     const assignees = profiles
