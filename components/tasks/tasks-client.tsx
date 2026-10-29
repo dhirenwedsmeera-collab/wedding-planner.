@@ -204,14 +204,16 @@ export function TasksClient({
       </div>
 
       {view === "table" ? (
-        <TaskTable
-          tasks={activeTasks}
-          onStatusChange={moveTask}
-          canEdit={canEdit}
-          isAdmin={isAdmin}
-          onUpdated={updateTask}
-          onDeleted={removeTask}
-        />
+<TaskTable
+  tasks={activeTasks}
+  onStatusChange={moveTask}
+  canEdit={canEdit}
+  isAdmin={isAdmin}
+  onUpdated={updateTask}
+  onDeleted={removeTask}
+  events={events}
+  profiles={profiles}
+/>
       ) : (
         <TaskCalendar
           tasks={activeTasks}
