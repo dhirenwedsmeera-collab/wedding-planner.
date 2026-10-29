@@ -51,15 +51,21 @@ export function TasksClient({
     [tasks, eventFilter]
   );
 
-  const activeTasks = useMemo(
-    () => visibleTasks.filter((t) => t.status !== "completed"),
-    [visibleTasks]
-  );
+const activeTasks = useMemo(
+  () =>
+    visibleTasks.filter(
+      (t) => String(t.status).toLowerCase() !== "completed"
+    ),
+  [visibleTasks]
+);
 
-  const completedTasks = useMemo(
-    () => visibleTasks.filter((t) => t.status === "completed"),
-    [visibleTasks]
-  );
+const completedTasks = useMemo(
+  () =>
+    visibleTasks.filter(
+      (t) => String(t.status).toLowerCase() === "completed"
+    ),
+  [visibleTasks]
+);
 
   function canEdit(t: Task) {
     return isAdmin || (t.assignees ?? []).some((a) => a.id === currentUser?.id);
