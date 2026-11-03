@@ -1,20 +1,15 @@
+
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, type DragEndEvent,
-} from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { motion } from "framer-motion";
-import { LayoutGrid, Table2, Plus, Calendar as CalendarIcon, Trash2, Upload } from "lucide-react";
+import { Table2, Plus, Calendar as CalendarIcon, Trash2, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, TaskPriority, WeddingEvent, Profile } from "@/types/domain";
-import { getTaskUrgency, URGENCY_STYLES, formatDate, initials } from "@/lib/utils";
+import { getTaskUrgency, URGENCY_STYLES, formatDate } from "@/lib/utils";
 import { fireConfetti } from "@/lib/confetti";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskCalendar } from "@/components/tasks/task-calendar";
@@ -28,25 +23,63 @@ const STATUS_COLUMNS: { id: TaskStatus; label: string }[] = [
 ];
 
 const PRIORITY_COLOR: Record<TaskPriority, "red" | "orange" | "yellow" | "green"> = {
-  critical: "red", high: "orange", medium: "yellow", low: "green",
+  critical: "red",
+  high: "orange",
+  medium: "yellow",
+  low: "green",
 };
 
 export function TasksClient({
-  initialTasks, events, profiles, currentUser,
-}: { initialTasks: Task[]; events: WeddingEvent[]; profiles: Profile[]; currentUser: Profile | null }) {
+  initialTasks,
+  events,
+  profiles,
+  currentUser,
+}: {
+  initialTasks: Task[];
+  events: WeddingEvent[];
+  profiles: Profile[];
+  currentUser: Profile | null;
+}) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [view, setView] = useState<"kanban" | "table" | "calendar">("kanban");
+  const [view, setView] = useState<"table" | "calendar">("table");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [completedOpen, setCompletedOpen] = useState(false);
+
   const supabase = createClient();
   const isAdmin = currentUser?.role === "admin";
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
   const visibleTasks = useMemo(
-    () => (eventFilter === "all" ? tasks : tasks.filter((t) => t.event_id === eventFilter)),
+    () =>
+      eventFilter === "all"
+        ? tasks
+        : tasks.filter((t) => t.event_id === eventFilter),
     [tasks, eventFilter]
+  );
+
+  const priorityFilteredTasks = useMemo(
+    () =>
+      priorityFilter === "all"
+        ? visibleTasks
+        : visibleTasks.filter((t) => t.priority === priorityFilter),
+    [visibleTasks, priorityFilter]
+  );
+
+  const activeTasks = useMemo(
+    () =>
+      priorityFilteredTasks.filter(
+        (t) => String(t.status).toLowerCase() !== "completed"
+      ),
+    [priorityFilteredTasks]
+  );
+
+  const completedTasks = useMemo(
+    () =>
+      priorityFilteredTasks.filter(
+        (t) => String(t.status).toLowerCase() === "completed"
+      ),
+    [priorityFilteredTasks]
   );
 
   function canEdit(t: Task) {
@@ -54,8 +87,12 @@ export function TasksClient({
   }
 
   function updateTask(updatedTask: Task) {
-    setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
-    setSelectedTask((prev) => (prev?.id === updatedTask.id ? updatedTask : prev));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+    );
+    setSelectedTask((prev) =>
+      prev?.id === updatedTask.id ? updatedTask : prev
+    );
   }
 
   function removeTask(taskId: string) {
@@ -65,84 +102,191 @@ export function TasksClient({
 
   async function moveTask(id: string, status: TaskStatus) {
     const task = tasks.find((t) => t.id === id);
-    if (!task || !canEdit(task)) return;
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
-    await supabase.from("tasks").update({ status }).eq("id", id);
-    if (status === "completed") fireConfetti();
-  }
+    if (!task || !canEdit(task) || task.status === status) return;
 
-  function handleDragEnd(e: DragEndEvent) {
-    setActiveId(null);
-    const { active, over } = e;
-    if (!over) return;
-    const newStatus = over.id as TaskStatus;
-    if (STATUS_COLUMNS.some((c) => c.id === newStatus)) {
-      moveTask(active.id as string, newStatus);
+    const previousStatus = task.status;
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, status } : t))
+    );
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, status: previousStatus } : t
+        )
+      );
+      alert("Couldn't update the task status. Please try again.");
+      return;
+    }
+
+    if (status === "completed") {
+      setCompletedOpen(true);
+      fireConfetti();
     }
   }
-
-  const activeTask = tasks.find((t) => t.id === activeId);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-xl border border-border p-1">
-          <button onClick={() => setView("kanban")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "kanban" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
-            <LayoutGrid className="h-3.5 w-3.5" /> Kanban
-          </button>
-          <button onClick={() => setView("table")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "table" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
+          <button
+            onClick={() => setView("table")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+              view === "table"
+                ? "bg-emerald-700 text-white"
+                : "text-muted-foreground"
+            }`}
+          >
             <Table2 className="h-3.5 w-3.5" /> Table
           </button>
-          <button onClick={() => setView("calendar")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${view === "calendar" ? "bg-emerald-700 text-white" : "text-muted-foreground"}`}>
+
+          <button
+            onClick={() => setView("calendar")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+              view === "calendar"
+                ? "bg-emerald-700 text-white"
+                : "text-muted-foreground"
+            }`}
+          >
             <CalendarIcon className="h-3.5 w-3.5" /> Calendar
           </button>
         </div>
 
-        <select value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} className="input w-auto py-1.5 text-xs">
-          <option value="all">All events</option>
-          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
 
         {isAdmin && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <ImportTasksDialog events={events} existingTasks={tasks} onImported={(created) => setTasks((prev) => [...created, ...prev])} />
-            <CreateTaskDialog events={events} profiles={profiles} onCreated={(t) => setTasks((prev) => [t, ...prev])} />
+            <ImportTasksDialog
+              events={events}
+              existingTasks={tasks}
+              onImported={(created) =>
+                setTasks((prev) => [...created, ...prev])
+              }
+            />
+            <CreateTaskDialog
+              events={events}
+              profiles={profiles}
+              onCreated={(t) => setTasks((prev) => [t, ...prev])}
+            />
           </div>
         )}
       </div>
 
-      {view === "kanban" ? (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={(e) => setActiveId(e.active.id as string)}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-5">
-            {STATUS_COLUMNS.map((col) => (
-              <KanbanColumn
-                key={col.id}
-                id={col.id}
-                label={col.label}
-                tasks={visibleTasks.filter((t) => t.status === col.id)}
-                canEditTask={canEdit}
-                isAdmin={isAdmin}
-                onUpdated={updateTask}
-                onDeleted={removeTask}
-              />
-            ))}
-          </div>
-          <DragOverlay>{activeTask && <TaskCard task={activeTask} draggable={false} canEdit={canEdit(activeTask)} isAdmin={isAdmin} onUpdated={updateTask} onDeleted={removeTask} />}</DragOverlay>
-        </DndContext>
-      ) : view === "table" ? (
-        <TaskTable tasks={visibleTasks} onStatusChange={moveTask} canEdit={canEdit} isAdmin={isAdmin} onUpdated={updateTask} onDeleted={removeTask} />
+      {view === "table" ? (
+<TaskTable
+  tasks={activeTasks}
+  onStatusChange={moveTask}
+  canEdit={canEdit}
+  isAdmin={isAdmin}
+  onUpdated={updateTask}
+  onDeleted={removeTask}
+  events={events}
+  profiles={profiles}
+  eventFilter={eventFilter}
+  onEventFilterChange={setEventFilter}
+  priorityFilter={priorityFilter}
+  onPriorityFilterChange={setPriorityFilter}
+/>
       ) : (
-        <TaskCalendar tasks={visibleTasks} onSelectTask={setSelectedTask} />
+        <TaskCalendar
+          tasks={activeTasks}
+          onSelectTask={setSelectedTask}
+        />
       )}
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <button
+          type="button"
+          onClick={() => setCompletedOpen((open) => !open)}
+          aria-expanded={completedOpen}
+          className="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted/50"
+        >
+          <div>
+            <p className="text-sm font-semibold">Completed</p>
+            <p className="text-xs text-muted-foreground">
+              {completedTasks.length}{" "}
+              {completedTasks.length === 1 ? "task" : "tasks"} finished
+            </p>
+          </div>
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            {completedOpen ? "Hide" : "Show"}
+            <span aria-hidden="true">
+              {completedOpen ? "▲" : "▼"}
+            </span>
+          </span>
+        </button>
+
+        {completedOpen && (
+          <div className="space-y-2 border-t border-border p-3">
+            {completedTasks.length === 0 ? (
+              <p className="p-3 text-sm text-muted-foreground">
+                No completed tasks yet. Finished tasks will appear here.
+              </p>
+            ) : (
+              completedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <TaskDetailDialog
+                      task={task}
+                      events={events}
+                      profiles={profiles}
+                      canEdit={canEdit(task)}
+                      isAdmin={isAdmin}
+                      onUpdated={updateTask}
+                      onDeleted={removeTask}
+                    >
+                      <span className="cursor-pointer text-sm font-medium hover:underline">
+                        {task.name}
+                      </span>
+                    </TaskDetailDialog>
+
+                    {task.category && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {task.category}
+                      </p>
+                    )}
+
+                    {task.due_date && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Due {formatDate(task.due_date)}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Badge variant="green">Completed</Badge>
+                    {canEdit(task) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void moveTask(task.id, "not_started")
+                        }
+                      >
+                        Reopen
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {selectedTask && (
         <TaskDetailDialog
           task={selectedTask}
+          events={events}
+          profiles={profiles}
           canEdit={canEdit(selectedTask)}
           isAdmin={isAdmin}
           onUpdated={updateTask}
@@ -157,108 +301,19 @@ export function TasksClient({
   );
 }
 
-function KanbanColumn({
-  id, label, tasks, canEditTask, isAdmin, onUpdated, onDeleted,
-}: {
-  id: TaskStatus;
-  label: string;
-  tasks: Task[];
-  canEditTask: (t: Task) => boolean;
-  isAdmin: boolean;
-  onUpdated: (task: Task) => void;
-  onDeleted: (taskId: string) => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex min-h-[200px] w-[82vw] shrink-0 snap-center flex-col gap-2 rounded-2xl border border-dashed p-3 transition-colors sm:w-auto sm:shrink ${isOver ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-border"}`}
-    >
-      <div className="mb-1 flex items-center justify-between px-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{tasks.length}</span>
-      </div>
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        {tasks.map((t) => (
-          <SortableTaskCard
-            key={t.id}
-            task={t}
-            canEdit={canEditTask(t)}
-            isAdmin={isAdmin}
-            onUpdated={onUpdated}
-            onDeleted={onDeleted}
-          />
-        ))}
-      </SortableContext>
-    </div>
-  );
-}
-
-function SortableTaskCard({
-  task, canEdit, isAdmin, onUpdated, onDeleted,
-}: {
-  task: Task;
-  canEdit: boolean;
-  isAdmin: boolean;
-  onUpdated: (task: Task) => void;
-  onDeleted: (taskId: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id, disabled: !canEdit });
-  return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}>
-      <TaskCard task={task} canEdit={canEdit} isAdmin={isAdmin} onUpdated={onUpdated} onDeleted={onDeleted} />
-    </div>
-  );
-}
-
-function TaskCard({
-  task, draggable = true, canEdit, isAdmin = false, onUpdated, onDeleted,
-}: {
-  task: Task;
-  draggable?: boolean;
-  canEdit: boolean;
-  isAdmin?: boolean;
-  onUpdated?: (task: Task) => void;
-  onDeleted?: (taskId: string) => void;
-}) {
-  const urgency = getTaskUrgency(task.due_date, task.status);
-  const style = URGENCY_STYLES[urgency];
-  return (
-    <TaskDetailDialog
-      task={task}
-      canEdit={canEdit}
-      isAdmin={isAdmin}
-      onUpdated={onUpdated}
-      onDeleted={onDeleted}
-    >
-      <motion.div layout={draggable} whileHover={{ y: -2 }} className={`cursor-pointer rounded-xl border bg-card p-3 shadow-soft ${style.border} ${!canEdit ? "opacity-80" : ""}`}>
-        <div className="mb-2 flex items-center justify-between">
-          <Badge variant={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
-          {task.due_date && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <CalendarIcon className="h-3 w-3" /> {formatDate(task.due_date)}
-            </span>
-          )}
-        </div>
-        <p className="text-sm font-medium leading-snug">{task.name}</p>
-        {task.category && <p className="mt-0.5 text-[11px] text-muted-foreground">{task.category}</p>}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex -space-x-1.5">
-            {(task.assignees ?? []).slice(0, 3).map((a) => (
-              <div key={a.id} title={a.full_name} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-emerald-gold text-[9px] font-semibold text-white">
-                {initials(a.full_name)}
-              </div>
-            ))}
-          </div>
-          {urgency !== "can_wait" && <Badge variant={urgency === "overdue" || urgency === "critical" ? "red" : urgency === "urgent" ? "orange" : "yellow"}>{style.label}</Badge>}
-        </div>
-      </motion.div>
-    </TaskDetailDialog>
-  );
-}
-
 function TaskTable({
-  tasks, onStatusChange, canEdit, isAdmin, onUpdated, onDeleted,
+  tasks,
+  onStatusChange,
+  canEdit,
+  isAdmin,
+  onUpdated,
+  onDeleted,
+  events,
+  profiles,
+  eventFilter,
+  onEventFilterChange,
+  priorityFilter,
+  onPriorityFilterChange,
 }: {
   tasks: Task[];
   onStatusChange: (id: string, s: TaskStatus) => void;
@@ -266,14 +321,53 @@ function TaskTable({
   isAdmin: boolean;
   onUpdated: (task: Task) => void;
   onDeleted: (taskId: string) => void;
+  events: WeddingEvent[];
+  profiles: Profile[];
+  eventFilter: string;
+  onEventFilterChange: (value: string) => void;
+  priorityFilter: string;
+  onPriorityFilterChange: (value: string) => void;
 }) {
   return (
     <Card className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <th className="px-4 py-3">Task</th>
-            <th className="px-4 py-3">Priority</th>
+            <th className="px-4 py-3 align-top">
+              <div className="space-y-2">
+                <span>Task / Event</span>
+                <select
+                  value={eventFilter}
+                  onChange={(e) => onEventFilterChange(e.target.value)}
+                  className="input w-full min-w-32 py-1 text-xs font-normal normal-case tracking-normal"
+                  aria-label="Filter tasks by event"
+                >
+                  <option value="all">All events</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </th>
+            <th className="px-4 py-3 align-top">
+              <div className="space-y-2">
+                <span>Priority</span>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => onPriorityFilterChange(e.target.value)}
+                  className="input w-full min-w-32 py-1 text-xs font-normal normal-case tracking-normal"
+                  aria-label="Filter tasks by priority"
+                >
+                  <option value="all">All priorities</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Due</th>
             <th className="px-4 py-3">Assigned</th>
@@ -285,305 +379,281 @@ function TaskTable({
             const urgency = getTaskUrgency(t.due_date, t.status);
             const style = URGENCY_STYLES[urgency];
             const editable = canEdit(t);
+
             return (
-              <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/50">
+              <tr
+                key={t.id}
+                className="border-b border-border last:border-0 hover:bg-muted/50"
+              >
                 <td className="px-4 py-3">
-                  <TaskDetailDialog task={t} canEdit={editable} isAdmin={isAdmin} onUpdated={onUpdated} onDeleted={onDeleted}>
-                    <span className="cursor-pointer font-medium hover:underline">{t.name}</span>
+                  <TaskDetailDialog
+                    task={t}
+                    events={events}
+                    profiles={profiles}
+                    canEdit={editable}
+                    isAdmin={isAdmin}
+                    onUpdated={onUpdated}
+                    onDeleted={onDeleted}
+                  >
+                    <span className="cursor-pointer font-medium hover:underline">
+                      {t.name}
+                    </span>
                   </TaskDetailDialog>
                 </td>
-                <td className="px-4 py-3"><Badge variant={PRIORITY_COLOR[t.priority]}>{t.priority}</Badge></td>
+                <td className="px-4 py-3">
+                  <Badge variant={PRIORITY_COLOR[t.priority]}>
+                    {t.priority}
+                  </Badge>
+                </td>
                 <td className="px-4 py-3">
                   <select
                     value={t.status}
                     disabled={!editable}
-                    onChange={(e) => onStatusChange(t.id, e.target.value as TaskStatus)}
-                    className="rounded-lg border border-border bg-background px-2 py-1 text-xs disabled:opacity-50"
+                    onChange={(e) =>
+                      onStatusChange(t.id, e.target.value as TaskStatus)
+                    }
+                    className="input w-auto py-1 text-xs"
                   >
-                    {STATUS_COLUMNS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                    <option value="cancelled">Cancelled</option>
+                    {STATUS_COLUMNS.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
                   </select>
                 </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(t.due_date)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex -space-x-1.5">
-                    {(t.assignees ?? []).map((a) => (
-                      <div key={a.id} title={a.full_name} className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-emerald-gold text-[9px] font-semibold text-white">
-                        {initials(a.full_name)}
-                      </div>
-                    ))}
-                  </div>
+                <td className="px-4 py-3 text-muted-foreground">
+                  {t.due_date ? formatDate(t.due_date) : "—"}
                 </td>
-                <td className="px-4 py-3">{urgency !== "can_wait" && <Badge variant={urgency === "overdue" || urgency === "critical" ? "red" : urgency === "urgent" ? "orange" : "yellow"}>{style.label}</Badge>}</td>
+                <td className="px-4 py-3 text-xs text-muted-foreground">
+                  {(t.assignees ?? []).map((a) => a.full_name).join(", ") || "—"}
+                </td>
+                <td className="px-4 py-3">
+                  {urgency !== "can_wait" ? (
+                    <Badge
+                      variant={
+                        urgency === "overdue" || urgency === "critical"
+                          ? "red"
+                          : urgency === "urgent"
+                            ? "orange"
+                            : "yellow"
+                      }
+                    >
+                      {style.label}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
               </tr>
             );
           })}
+
+          {tasks.length === 0 && (
+            <tr>
+              <td
+                colSpan={6}
+                className="px-4 py-10 text-center text-sm text-muted-foreground"
+              >
+                No tasks found for these filters.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </Card>
   );
 }
 
-function TaskDetailDialog({
-  task, canEdit, isAdmin = false, onUpdated, onDeleted, children, controlledOpen, onOpenChange,
+function CreateTaskDialog({
+  events,
+  profiles,
+  onCreated,
 }: {
-  task: Task;
-  canEdit: boolean;
-  isAdmin?: boolean;
-  onUpdated?: (task: Task) => void;
-  onDeleted?: (taskId: string) => void;
-  children: React.ReactNode;
-  controlledOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  events: WeddingEvent[];
+  profiles: Profile[];
+  onCreated: (task: Task) => void;
 }) {
-  const supabase = createClient();
-  const [internalOpen, setInternalOpen] = useState(false);
-  const open = controlledOpen ?? internalOpen;
-  const setOpen = onOpenChange ?? setInternalOpen;
-  const [name, setName] = useState(task.name);
-  const [desc, setDesc] = useState(task.description ?? "");
-  const [pct, setPct] = useState(task.completion_pct);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [status, setStatus] = useState<TaskStatus>("not_started");
+  const [dueDate, setDueDate] = useState("");
+  const [eventId, setEventId] = useState("");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const supabase = createClient();
 
-  async function save() {
-    if (!canEdit || saving) return;
-    const trimmedName = name.trim();
-    if (!trimmedName) return;
-
+  async function submit() {
+    if (!name.trim() || saving) return;
     setSaving(true);
-    const { error } = await supabase
+
+    const { data, error } = await supabase
       .from("tasks")
-      .update({ name: trimmedName, description: desc, completion_pct: pct })
-      .eq("id", task.id);
+      .insert({
+        name: name.trim(),
+        description: description.trim() || null,
+        category: category.trim() || null,
+        priority,
+        status,
+        due_date: dueDate || null,
+        event_id: eventId || null,
+      })
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      alert(error?.message ?? "Could not create task.");
+      setSaving(false);
+      return;
+    }
+
+    if (assigneeIds.length) {
+      const { error: assigneeError } = await supabase
+        .from("task_assignees")
+        .insert(assigneeIds.map((user_id) => ({ task_id: data.id, user_id })));
+
+      if (assigneeError) {
+        await supabase.from("tasks").delete().eq("id", data.id);
+        alert(`Task assignments could not be saved: ${assigneeError.message}`);
+        setSaving(false);
+        return;
+      }
+    }
+
+    const assignees = profiles
+      .filter((p) => assigneeIds.includes(p.id))
+      .map((p) => ({ id: p.id, full_name: p.full_name }));
+
+    onCreated({ ...data, assignees } as Task);
+
+    setName("");
+    setDescription("");
+    setCategory("");
+    setPriority("medium");
+    setStatus("not_started");
+    setDueDate("");
+    setEventId("");
+    setAssigneeIds([]);
     setSaving(false);
-
-    if (error) {
-      alert("Couldn't save the task. Please try again.");
-      return;
-    }
-
-    onUpdated?.({ ...task, name: trimmedName, description: desc, completion_pct: pct });
-    setOpen(false);
-  }
-
-  async function deleteTask() {
-    if (!isAdmin || deleting) return;
-    const confirmed = window.confirm(`Are you sure you want to delete "${task.name}"? This cannot be undone.`);
-    if (!confirmed) return;
-
-    setDeleting(true);
-    const { data: deletedTask, error } = await supabase
-      .from("tasks")
-      .delete()
-      .eq("id", task.id)
-      .select("id")
-      .maybeSingle();
-    setDeleting(false);
-
-    if (error) {
-      console.error("Task deletion failed:", error);
-      alert(`Couldn't delete the task: ${error.message}`);
-      return;
-    }
-
-    // Supabase can return no error when row-level security prevents a delete.
-    if (!deletedTask) {
-      alert("The task was not deleted. Your account may not have admin permission in the database. Please check the Supabase tasks delete policy.");
-      return;
-    }
-
-    onDeleted?.(task.id);
     setOpen(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-1.5 h-4 w-4" /> Add Task
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{task.name}</DialogTitle>
+          <DialogTitle>Create Task</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={PRIORITY_COLOR[task.priority]}>{task.priority}</Badge>
-            {task.category && <Badge variant="outline">{task.category}</Badge>}
-            {task.due_date && <Badge variant="outline">Due {formatDate(task.due_date)}</Badge>}
-          </div>
+
+        <div className="space-y-3">
           <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Task name</p>
+            <label className="mb-1 block text-xs font-medium">Task name</label>
             <input
-              disabled={!canEdit}
+              className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="input disabled:opacity-60"
-              placeholder="Task name"
+              placeholder="e.g. Book photographer"
             />
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Description</p>
+            <label className="mb-1 block text-xs font-medium">Description</label>
             <textarea
-              disabled={!canEdit}
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              rows={3}
-              className="input disabled:opacity-60"
-              placeholder="No description yet."
+              className="input min-h-20"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
           <div>
-            <div className="mb-1.5 flex items-center justify-between text-xs">
-              <span className="font-medium text-muted-foreground">Completion</span>
-              <span className="font-semibold">{pct}%</span>
-            </div>
+            <label className="mb-1 block text-xs font-medium">Category</label>
             <input
-              type="range" min={0} max={100} value={pct} disabled={!canEdit}
-              onChange={(e) => setPct(Number(e.target.value))}
-              className="w-full accent-emerald-600"
+              className="input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. Ceremony"
             />
           </div>
-          {task.assignees && task.assignees.length > 0 && (
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assigned to</p>
-              <div className="flex flex-wrap gap-2">
-                {task.assignees.map((a) => (
-                  <span key={a.id} className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-gold text-[8px] font-semibold text-white">{initials(a.full_name)}</span>
-                    {a.full_name}
-                  </span>
+              <label className="mb-1 block text-xs font-medium">Priority</label>
+              <select
+                className="input"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+              >
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
-              </div>
+              </select>
             </div>
-          )}
-          {canEdit && <Button className="w-full" onClick={save} disabled={saving || !name.trim()}>{saving ? "Saving..." : "Save changes"}</Button>}
-          {isAdmin && (
-            <Button variant="destructive" className="w-full" onClick={deleteTask} disabled={deleting}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              {deleting ? "Deleting..." : "Delete task"}
-            </Button>
-          )}
-          {!canEdit && <p className="text-center text-xs text-muted-foreground">Only the assignee or admin can edit this task.</p>}
-          <div className="border-t border-border pt-4">
-            {open && <TaskComments taskId={task.id} />}
+            <div>
+              <label className="mb-1 block text-xs font-medium">Status</label>
+              <select
+                className="input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+              >
+                {STATUS_COLUMNS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-type ImportTaskRecord = {
-  section?: string;
-  title?: string;
-  priority?: string;
-  status?: string;
-  notes?: string;
-};
-
-function ImportTasksDialog({ events, existingTasks, onImported }: {
-  events: WeddingEvent[];
-  existingTasks: Task[];
-  onImported: (tasks: Task[]) => void;
-}) {
-  const supabase = createClient();
-  const [open, setOpen] = useState(false);
-  const [eventId, setEventId] = useState(events[0]?.id ?? "");
-  const [records, setRecords] = useState<ImportTaskRecord[]>([]);
-  const [fileName, setFileName] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  const existingNames = new Set(existingTasks
-    .filter((task) => task.event_id === eventId)
-    .map((task) => task.name.trim().toLocaleLowerCase()));
-  const seenTitles = new Set<string>();
-  const importable = records.filter((record) => {
-    const title = record.title?.trim().toLocaleLowerCase();
-    if (!title || existingNames.has(title) || seenTitles.has(title)) return false;
-    seenTitles.add(title);
-    return true;
-  });
-  const duplicates = records.length - importable.length;
-
-  function reset() {
-    setRecords([]); setFileName(""); setError(""); setMessage("");
-  }
-
-  async function readFile(file?: File) {
-    reset();
-    if (!file) return;
-    setFileName(file.name);
-    try {
-      const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed) || parsed.some((item) => !item || typeof item !== "object" || typeof item.title !== "string")) {
-        throw new Error("The file must be the wedding-planner-tasks.json file with a list of tasks.");
-      }
-      setRecords(parsed as ImportTaskRecord[]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't read this JSON file.");
-    }
-  }
-
-  async function importTasks() {
-    if (!eventId) { setError("Choose the wedding event these tasks belong to."); return; }
-    if (importable.length === 0) { setError("There are no new tasks to import. Existing task titles are skipped to prevent duplicates."); return; }
-    setBusy(true); setError(""); setMessage("");
-    const rows = importable.map((record) => {
-      const priority = String(record.priority ?? "medium").toLowerCase();
-      const safePriority = (["critical", "high", "medium", "low"].includes(priority) ? priority : "medium") as TaskPriority;
-      return {
-        event_id: eventId,
-        name: record.title!.trim(),
-        category: record.section?.trim() || "Wedding planning",
-        description: record.notes?.trim() || null,
-        priority: safePriority,
-        status: "not_started" as TaskStatus,
-      };
-    });
-    const { data, error: insertError } = await supabase.from("tasks").insert(rows).select("*");
-    setBusy(false);
-    if (insertError || !data) {
-      setError(insertError?.message || "The tasks could not be imported.");
-      return;
-    }
-    onImported(data as Task[]);
-    setMessage(`Imported ${data.length} tasks${duplicates > 0 ? `; skipped ${duplicates} existing duplicate${duplicates === 1 ? "" : "s"}` : ""}.`);
-    setRecords([]); setFileName("");
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) reset(); }}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline"><Upload className="mr-1.5 h-3.5 w-3.5" /> Import task list</Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Import wedding tasks</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Import your prepared JSON list in one go. Tasks are grouped by section, and matching titles already in the selected event are skipped.</p>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium">Wedding event</span>
-            <select className="input w-full" value={eventId} onChange={(e) => setEventId(e.target.value)}>
-              <option value="">Choose an event</option>
-              {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+          <div>
+            <label className="mb-1 block text-xs font-medium">Due date</label>
+            <input
+              className="input"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Event</label>
+            <select
+              className="input"
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+            >
+              <option value="">No event</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
             </select>
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-medium">Task JSON file</span>
-            <input type="file" accept=".json,application/json" className="input w-full" onChange={(e) => readFile(e.target.files?.[0])} />
-            <span className="text-xs text-muted-foreground">Choose <strong>wedding-planner-tasks.json</strong> from the bulk-import ZIP.</span>
-          </label>
-          {fileName && <p className="text-xs text-muted-foreground">Selected: {fileName}</p>}
-          {records.length > 0 && <div className="rounded-xl border border-border p-3 text-sm space-y-1">
-            <p><strong>{records.length}</strong> tasks found across {new Set(records.map((record) => record.section).filter(Boolean)).size} sections.</p>
-            <p>{importable.length} new tasks will be imported.</p>
-            {duplicates > 0 && <p className="text-amber-700 dark:text-amber-300">{duplicates} duplicate task titles will be skipped.</p>}
-            <p className="text-xs text-muted-foreground">Urgent sections are marked High priority. Notes are saved in the task description; section names are saved as categories.</p>
-          </div>}
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-          {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
-          <Button className="w-full" onClick={importTasks} disabled={busy || records.length === 0 || !eventId || importable.length === 0}>
-            {busy ? "Importing tasks…" : `Import ${importable.length} tasks`}
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Assign to</label>
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+              {profiles.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={assigneeIds.includes(p.id)}
+                    onChange={(e) =>
+                      setAssigneeIds((prev) =>
+                        e.target.checked
+                          ? [...prev, p.id]
+                          : prev.filter((id) => id !== p.id)
+                      )
+                    }
+                  />
+                  {p.full_name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <Button
+            className="w-full"
+            onClick={() => void submit()}
+            disabled={!name.trim() || saving}
+          >
+            {saving ? "Saving..." : "Create Task"}
           </Button>
         </div>
       </DialogContent>
@@ -591,67 +661,405 @@ function ImportTasksDialog({ events, existingTasks, onImported }: {
   );
 }
 
-function CreateTaskDialog({ events, profiles, onCreated }: { events: WeddingEvent[]; profiles: Profile[]; onCreated: (t: Task) => void }) {
-  const supabase = createClient();
+function ImportTasksDialog({
+  events,
+  existingTasks,
+  onImported,
+}: {
+  events: WeddingEvent[];
+  existingTasks: Task[];
+  onImported: (tasks: Task[]) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [eventId, setEventId] = useState(events[0]?.id ?? "");
-  const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [dueDate, setDueDate] = useState("");
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const [saving, setSaving] = useState(false);
+  const supabase = createClient();
 
-  async function create() {
-    if (!name.trim()) return;
-    const { data: task, error } = await supabase
-      .from("tasks")
-      .insert({ name, event_id: eventId || null, priority, due_date: dueDate || null, status: "not_started" })
-      .select()
-      .single();
-    if (error || !task) return;
-    if (assigneeIds.length > 0) {
-      await supabase.from("task_assignees").insert(assigneeIds.map((user_id) => ({ task_id: task.id, user_id })));
+  async function readFile(file: File) {
+    setFileName(file.name);
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((line) => line.trim());
+    if (!lines.length) return;
+
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    setRows(
+      lines.slice(1).map((line) => {
+        const values = line.split(",").map((v) => v.trim());
+        return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ""]));
+      })
+    );
+  }
+
+  async function importTasks() {
+    if (!rows.length || saving) return;
+    setSaving(true);
+
+    const existingNames = new Set(
+      existingTasks.map((t) => t.name.trim().toLowerCase())
+    );
+
+    const newRows = rows.filter(
+      (r) =>
+        r.name?.trim() &&
+        !existingNames.has(r.name.trim().toLowerCase())
+    );
+
+    const payload = newRows.map((r) => ({
+      name: r.name.trim(),
+      description: r.description || null,
+      category: r.category || null,
+      priority: (
+        ["critical", "high", "medium", "low"].includes(r.priority)
+          ? r.priority
+          : "medium"
+      ) as TaskPriority,
+      status: (
+        STATUS_COLUMNS.some((s) => s.id === r.status)
+          ? r.status
+          : "not_started"
+      ) as TaskStatus,
+      due_date: r.due_date || null,
+      event_id:
+        events.find((e) => e.name.toLowerCase() === r.event?.toLowerCase())?.id ??
+        null,
+    }));
+
+    if (!payload.length) {
+      alert("No new tasks to import.");
+      setSaving(false);
+      return;
     }
-    onCreated({ ...task, assignees: profiles.filter((p) => assigneeIds.includes(p.id)) });
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(payload)
+      .select("*");
+
+    if (error || !data) {
+      alert(error?.message ?? "Could not import tasks.");
+      setSaving(false);
+      return;
+    }
+
+    onImported(data as Task[]);
+    setRows([]);
+    setFileName("");
+    setSaving(false);
     setOpen(false);
-    setName(""); setDueDate(""); setAssigneeIds([]);
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="ml-auto"><Plus className="h-3.5 w-3.5" /> New task</Button>
+        <Button variant="outline">
+          <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+        </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>New task</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Import Tasks from CSV</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
-          <input className="input" placeholder="Task name" value={name} onChange={(e) => setName(e.target.value)} />
+          <p className="text-xs text-muted-foreground">
+            CSV columns: name, description, category, priority, status, due_date,
+            event. Duplicate task names are skipped.
+          </p>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void readFile(f);
+            }}
+            className="input"
+          />
+          {fileName && (
+            <p className="text-xs text-muted-foreground">
+              Loaded: {fileName} ({rows.length} rows)
+            </p>
+          )}
+          <Button
+            className="w-full"
+            onClick={() => void importTasks()}
+            disabled={!rows.length || saving}
+          >
+            {saving ? "Importing..." : "Import Tasks"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TaskDetailDialog({
+  task,
+  events,
+  profiles,
+  canEdit,
+  isAdmin,
+  onUpdated,
+  onDeleted,
+  controlledOpen,
+  onOpenChange,
+  children,
+}: {
+  task: Task;
+  events: WeddingEvent[];
+  profiles: Profile[];
+  canEdit: boolean;
+  isAdmin: boolean;
+  onUpdated?: (task: Task) => void;
+  onDeleted?: (taskId: string) => void;
+  controlledOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ? true : internalOpen;
+
+  const setOpen = (value: boolean) => {
+    if (controlledOpen) onOpenChange?.(value);
+    else setInternalOpen(value);
+  };
+
+  const [name, setName] = useState(task.name);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [category, setCategory] = useState(task.category ?? "");
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
+  const [status, setStatus] = useState<TaskStatus>(task.status);
+  const [dueDate, setDueDate] = useState(task.due_date ?? "");
+  const [eventId, setEventId] = useState(task.event_id ?? "");
+  const [saving, setSaving] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    (task.assignees ?? []).map((a) => a.id)
+  );
+
+  const supabase = createClient();
+
+  async function save() {
+    if (!canEdit || saving) return;
+    setSaving(true);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({
+        name: name.trim(),
+        description: description.trim() || null,
+        category: category.trim() || null,
+        priority,
+        status,
+        due_date: dueDate || null,
+        event_id: eventId || null,
+      })
+      .eq("id", task.id)
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      alert(error?.message ?? "Could not update task.");
+      setSaving(false);
+      return;
+    }
+
+    const { error: clearAssigneesError } = await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", task.id);
+
+    if (clearAssigneesError) {
+      alert(`Task details saved, but assignments could not be updated: ${clearAssigneesError.message}`);
+      setSaving(false);
+      return;
+    }
+
+    if (assigneeIds.length) {
+      const { error: assigneeError } = await supabase
+        .from("task_assignees")
+        .insert(assigneeIds.map((user_id) => ({ task_id: task.id, user_id })));
+
+      if (assigneeError) {
+        alert(`Task details saved, but assignments could not be updated: ${assigneeError.message}`);
+        setSaving(false);
+        return;
+      }
+    }
+
+    const assignees = profiles
+      .filter((p) => assigneeIds.includes(p.id))
+      .map((p) => ({ id: p.id, full_name: p.full_name }));
+
+    const updated = { ...task, ...data, assignees } as Task;
+    onUpdated?.(updated);
+
+    if (status === "completed" && task.status !== "completed") {
+      fireConfetti();
+    }
+
+    setSaving(false);
+    setOpen(false);
+  }
+
+  async function deleteTask() {
+    if (!isAdmin || saving) return;
+    if (!confirm(`Delete "${task.name}"? This cannot be undone.`)) return;
+
+    setSaving(true);
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", task.id);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    onDeleted?.(task.id);
+    setSaving(false);
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{task.name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium">Task name</label>
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Description</label>
+            <textarea
+              className="input min-h-20"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Category</label>
+            <input
+              className="input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <select className="input" value={eventId} onChange={(e) => setEventId(e.target.value)}>
-              {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-            <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as TaskPriority)}>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Priority</label>
+              <select
+                className="input"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                disabled={!canEdit}
+              >
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Status</label>
+              <select
+                className="input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                disabled={!canEdit}
+              >
+                {STATUS_COLUMNS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Due date</label>
+            <input
+              className="input"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              disabled={!canEdit}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium">Event</label>
+            <select
+              className="input"
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+              disabled={!canEdit}
+            >
+              <option value="">No event</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
             </select>
           </div>
-          <input type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+
           <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assign to</p>
-            <div className="flex flex-wrap gap-2">
+            <label className="mb-1 block text-xs font-medium">Assigned to</label>
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
               {profiles.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setAssigneeIds((prev) => prev.includes(p.id) ? prev.filter((id) => id !== p.id) : [...prev, p.id])}
-                  className={`rounded-full border px-2.5 py-1 text-xs ${assigneeIds.includes(p.id) ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50" : "border-border"}`}
-                >
+                <label key={p.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={assigneeIds.includes(p.id)}
+                    disabled={!canEdit}
+                    onChange={(e) =>
+                      setAssigneeIds((prev) =>
+                        e.target.checked
+                          ? [...prev, p.id]
+                          : prev.filter((id) => id !== p.id)
+                      )
+                    }
+                  />
                   {p.full_name}
-                </button>
+                </label>
               ))}
             </div>
           </div>
-          <Button className="w-full" onClick={create}>Create task</Button>
+
+          <div className="flex gap-2">
+            {canEdit && (
+              <Button
+                className="flex-1"
+                onClick={() => void save()}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Save changes"}
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                onClick={() => void deleteTask()}
+                disabled={saving}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+              </Button>
+            )}
+          </div>
+
+          <TaskComments taskId={task.id} />
         </div>
       </DialogContent>
     </Dialog>

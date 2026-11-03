@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Phone, Pencil, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -248,6 +248,10 @@ function EditGuestDialog({ guest, onUpdated }: { guest: Guest; onUpdated: (g: Gu
   const [invitationSent, setInvitationSent] = useState(guest.invitation_sent);
   const [saveTheDateSent, setSaveTheDateSent] = useState(Boolean(guest.save_the_date_sent));
   const [saveTheDateSentAt, setSaveTheDateSentAt] = useState(guest.save_the_date_sent_at ?? "");
+  useEffect(() => {
+  setSaveTheDateSent(Boolean(guest.save_the_date_sent));
+  setSaveTheDateSentAt(guest.save_the_date_sent_at ?? "");
+}, [guest.save_the_date_sent, guest.save_the_date_sent_at]);
   const [saving, setSaving] = useState(false);
 
   async function save() {
