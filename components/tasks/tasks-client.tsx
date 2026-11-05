@@ -53,6 +53,23 @@ const PRIORITY_COLOR: Record<
   low: "green",
 };
 
+const TASK_CATEGORIES = [
+  "Planning & coordination",
+  "Final month",
+  "Budget & payments",
+  "Venue",
+  "Suppliers & bookings",
+  "Décor & styling",
+  "Stationery & signage",
+  "Ceremony supplies",
+  "Guest arrangements",
+  "Favours & guest experience",
+  "Food & drinks",
+  "Entertainment & activities",
+  "Photography & videography",
+  "Outfits & personal preparation",
+];
+
 export function TasksClient({
   initialTasks,
   events,
